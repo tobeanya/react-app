@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx @react-native-community/cli@latest init ReactApp --version 0.81.0)",
+      "Bash(npm install:*)",
+      "Bash(npx react-native:*)",
+      "Bash(taskkill:*)",
+      "Bash(npm run:*)",
+      "Bash(npx tsc:*)",
+      "Bash(curl:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(npx @react-native-community/cli run-windows:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

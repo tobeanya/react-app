@@ -3,7 +3,17 @@ import {StatusBar, StyleSheet, useColorScheme, View} from 'react-native';
 import {SafeAreaProvider, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {NavigationContainer} from '@react-navigation/native';
 import {TopTabNavigator} from './src/navigation/TopTabNavigator';
-import {ExpansionPlan, Candidate} from './src/types';
+import {
+  ExpansionPlan,
+  GenerationCandidate,
+  TransmissionCandidate,
+  SolverLog,
+  SolverResult,
+  SolverStatusType,
+  DEFAULT_SETTINGS,
+  SAMPLE_SOLVER_LOGS,
+} from './src/types';
+import {SOLVER_RESULTS_DATA} from './src/data/solverResults';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -22,7 +32,11 @@ function AppContent() {
   const safeAreaInsets = useSafeAreaInsets();
 
   const [expansionPlans, setExpansionPlans] = useState<ExpansionPlan[]>([]);
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [generationCandidates, setGenerationCandidates] = useState<GenerationCandidate[]>([]);
+  const [transmissionCandidates, setTransmissionCandidates] = useState<TransmissionCandidate[]>([]);
+  const [solverLogs, setSolverLogs] = useState<SolverLog[]>(SAMPLE_SOLVER_LOGS);
+  const [solverResults, setSolverResults] = useState<SolverResult[]>(SOLVER_RESULTS_DATA);
+  const [solverStatus, setSolverStatus] = useState<SolverStatusType>('ready');
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -36,7 +50,10 @@ function AppContent() {
       isActive: false,
       region: 'ERCOT',
       suffix: '',
-      solverType: 'Normal',
+      sourceStudyId: '',
+      planningHorizonStart: 2025,
+      planningHorizonEnd: 2045,
+      settings: DEFAULT_SETTINGS,
     };
     setExpansionPlans(prev => [...prev, newPlan]);
     setSelectedPlanId(newPlan.id);
@@ -50,7 +67,8 @@ function AppContent() {
 
   const handleDeletePlan = (id: string) => {
     setExpansionPlans(prev => prev.filter(p => p.id !== id));
-    setCandidates(prev => prev.filter(c => c.expansionPlanId !== id));
+    setGenerationCandidates(prev => prev.filter(c => c.expansionPlanId !== id));
+    setTransmissionCandidates(prev => prev.filter(c => c.expansionPlanId !== id));
     if (selectedPlanId === id) {
       setSelectedPlanId(null);
     }
@@ -67,42 +85,88 @@ function AppContent() {
       name: newName,
       dateCreated: new Date().toISOString(),
       isActive: false,
+      settings: {
+        ...planToCopy.settings,
+        constraints: planToCopy.settings.constraints.map(c => ({
+          ...c,
+          id: generateId(),
+        })),
+        escalationInputs: planToCopy.settings.escalationInputs.map(e => ({
+          ...e,
+          id: generateId(),
+        })),
+      },
     };
     setExpansionPlans(prev => [...prev, newPlan]);
 
-    const candidatesToCopy = candidates.filter(c => c.expansionPlanId === id);
-    const newCandidates = candidatesToCopy.map(c => ({
+    // Copy generation candidates
+    const genCandidatesToCopy = generationCandidates.filter(c => c.expansionPlanId === id);
+    const newGenCandidates = genCandidatesToCopy.map(c => ({
       ...c,
       id: generateId(),
       expansionPlanId: newPlanId,
     }));
-    setCandidates(prev => [...prev, ...newCandidates]);
+    setGenerationCandidates(prev => [...prev, ...newGenCandidates]);
+
+    // Copy transmission candidates
+    const transCandidatesToCopy = transmissionCandidates.filter(c => c.expansionPlanId === id);
+    const newTransCandidates = transCandidatesToCopy.map(c => ({
+      ...c,
+      id: generateId(),
+      expansionPlanId: newPlanId,
+    }));
+    setTransmissionCandidates(prev => [...prev, ...newTransCandidates]);
+
     setSelectedPlanId(newPlanId);
   };
 
-  const handleCreateCandidate = (candidateData: Omit<Candidate, 'id'>) => {
-    const newCandidate: Candidate = {
-      ...candidateData,
+  // Generation candidate handlers
+  const handleCreateGenerationCandidate = (data: Omit<GenerationCandidate, 'id'>) => {
+    const newCandidate: GenerationCandidate = {
+      ...data,
       id: generateId(),
     };
-    setCandidates(prev => [...prev, newCandidate]);
+    setGenerationCandidates(prev => [...prev, newCandidate]);
   };
 
-  const handleUpdateCandidate = (candidate: Candidate) => {
-    setCandidates(prev =>
+  const handleUpdateGenerationCandidate = (candidate: GenerationCandidate) => {
+    setGenerationCandidates(prev =>
       prev.map(c => (c.id === candidate.id ? candidate : c)),
     );
   };
 
-  const handleDeleteCandidate = (id: string) => {
-    setCandidates(prev => prev.filter(c => c.id !== id));
+  const handleDeleteGenerationCandidates = (ids: string[]) => {
+    setGenerationCandidates(prev => prev.filter(c => !ids.includes(c.id)));
+  };
+
+  // Transmission candidate handlers
+  const handleCreateTransmissionCandidate = (data: Omit<TransmissionCandidate, 'id'>) => {
+    const newCandidate: TransmissionCandidate = {
+      ...data,
+      id: generateId(),
+    };
+    setTransmissionCandidates(prev => [...prev, newCandidate]);
+  };
+
+  const handleUpdateTransmissionCandidate = (candidate: TransmissionCandidate) => {
+    setTransmissionCandidates(prev =>
+      prev.map(c => (c.id === candidate.id ? candidate : c)),
+    );
+  };
+
+  const handleDeleteTransmissionCandidates = (ids: string[]) => {
+    setTransmissionCandidates(prev => prev.filter(c => !ids.includes(c.id)));
   };
 
   return (
     <View style={[styles.container, {paddingTop: safeAreaInsets.top}]}>
       <TopTabNavigator
         expansionPlans={expansionPlans}
-        candidates={candidates}
+        generationCandidates={generationCandidates}
+        transmissionCandidates={transmissionCandidates}
+        solverLogs={solverLogs}
+        solverResults={solverResults}
+        solverStatus={solverStatus}
         selectedPlanId={selectedPlanId}
         isModalOpen={isModalOpen}
         onSelectPlan={setSelectedPlanId}
@@ -110,9 +174,12 @@ function AppContent() {
         onUpdatePlan={handleUpdatePlan}
         onDeletePlan={handleDeletePlan}
         onCopyPlan={handleCopyPlan}
-        onCreateCandidate={handleCreateCandidate}
-        onUpdateCandidate={handleUpdateCandidate}
-        onDeleteCandidate={handleDeleteCandidate}
+        onCreateGenerationCandidate={handleCreateGenerationCandidate}
+        onUpdateGenerationCandidate={handleUpdateGenerationCandidate}
+        onDeleteGenerationCandidates={handleDeleteGenerationCandidates}
+        onCreateTransmissionCandidate={handleCreateTransmissionCandidate}
+        onUpdateTransmissionCandidate={handleUpdateTransmissionCandidate}
+        onDeleteTransmissionCandidates={handleDeleteTransmissionCandidates}
         onModalVisibleChange={setIsModalOpen}
       />
     </View>

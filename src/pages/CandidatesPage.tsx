@@ -1,416 +1,1125 @@
-import React, {useState} from 'react';
+import React, {useState, useRef, useCallback, useEffect} from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  FlatList,
+  ScrollView,
   TouchableOpacity,
-  Modal,
   TextInput,
-  Alert,
   Switch,
+  LayoutChangeEvent,
 } from 'react-native';
-import {Candidate, UnitType, UNIT_TYPES} from '../types';
+import {
+  GenerationCandidate,
+  TransmissionCandidate,
+  Region,
+  Month,
+  MONTHS,
+  REGIONS,
+} from '../types';
 
 interface Props {
-  candidates: Candidate[];
+  generationCandidates: GenerationCandidate[];
+  transmissionCandidates: TransmissionCandidate[];
   selectedPlanId: string | null;
-  onCreateCandidate: (candidate: Omit<Candidate, 'id'>) => void;
-  onUpdateCandidate: (candidate: Candidate) => void;
-  onDeleteCandidate: (id: string) => void;
+  availableRegions: Region[];
+  onCreateGenerationCandidate: (candidate: Omit<GenerationCandidate, 'id'>) => void;
+  onUpdateGenerationCandidate: (candidate: GenerationCandidate) => void;
+  onDeleteGenerationCandidates: (ids: string[]) => void;
+  onCreateTransmissionCandidate: (candidate: Omit<TransmissionCandidate, 'id'>) => void;
+  onUpdateTransmissionCandidate: (candidate: TransmissionCandidate) => void;
+  onDeleteTransmissionCandidates: (ids: string[]) => void;
   onModalVisibleChange: (visible: boolean) => void;
 }
 
-const defaultFormData = {
-  name: '',
-  maxCapacity: '',
-  unitType: 'Solar' as UnitType,
-  startYear: '',
-  endYear: '',
+const defaultGenForm = {
+  units: '',
+  capacity: '',
+  fixedCost: '',
+  startMonth: 'Jan' as Month,
+  startYear: '2026',
+  endYear: '2032',
   maxAdditionsPerYear: '',
   maxAdditionsOverall: '',
   isRetirement: false,
+  lifetime: '32',
+};
+
+const defaultTransForm = {
+  regionA: '' as Region | '',
+  regionB: '' as Region | '',
+  capacityLimitIn: '',
+  capacityLimitOut: '',
+  cost: '',
+  inflation: '1',
+  startYear: '2026',
+  endYear: '2032',
+  maxAdditionsPerYear: '',
+  maxAdditionsOverall: '',
+};
+
+// Initial column widths for generation table
+const initialGenColumnWidths = {
+  checkbox: 40,
+  units: 200,
+  capacity: 100,
+  fixedCost: 100,
+  startMonth: 100,
+  startYear: 90,
+  endYear: 90,
+  maxPerYear: 100,
+  maxOverall: 110,
+  retirement: 100,
+  lifetime: 80,
+};
+
+// Initial column widths for transmission table
+const initialTransColumnWidths = {
+  checkbox: 40,
+  regionA: 100,
+  regionB: 100,
+  capacityIn: 120,
+  capacityOut: 130,
+  cost: 120,
+  inflation: 90,
+  startYear: 90,
+  endYear: 90,
+  maxPerYear: 100,
+  maxOverall: 110,
 };
 
 export function CandidatesPage({
-  candidates,
+  generationCandidates,
+  transmissionCandidates,
   selectedPlanId,
-  onCreateCandidate,
-  onUpdateCandidate,
-  onDeleteCandidate,
+  availableRegions,
+  onCreateGenerationCandidate,
+  onUpdateGenerationCandidate,
+  onDeleteGenerationCandidates,
+  onCreateTransmissionCandidate,
+  onUpdateTransmissionCandidate,
+  onDeleteTransmissionCandidates,
   onModalVisibleChange,
 }: Props) {
-  const [modalVisible, setModalVisible] = useState(false);
+  const containerRef = useRef<View>(null);
+  const [containerWidth, setContainerWidth] = useState(800);
 
-  const showModal = () => {
-    setModalVisible(true);
-    onModalVisibleChange(true);
-  };
+  // Column widths state for resizing
+  const [genColWidths, setGenColWidths] = useState(initialGenColumnWidths);
+  const [transColWidths, setTransColWidths] = useState(initialTransColumnWidths);
+  const [resizing, setResizing] = useState<{table: 'gen' | 'trans'; column: string; startX: number; startWidth: number} | null>(null);
 
-  const hideModal = () => {
-    setModalVisible(false);
-    onModalVisibleChange(false);
-  };
-  const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(null);
-  const [formData, setFormData] = useState(defaultFormData);
+  // Use availableRegions if provided, otherwise fall back to all REGIONS
+  const effectiveRegions = availableRegions.length >= 2 ? availableRegions : REGIONS;
 
-  const filteredCandidates = candidates.filter(
+  // Selection state
+  const [selectedGenIds, setSelectedGenIds] = useState<string[]>([]);
+  const [selectedTransIds, setSelectedTransIds] = useState<string[]>([]);
+
+  // Modal state
+  const [showGenModal, setShowGenModal] = useState(false);
+  const [showTransModal, setShowTransModal] = useState(false);
+  const [editingGen, setEditingGen] = useState<GenerationCandidate | null>(null);
+  const [editingTrans, setEditingTrans] = useState<TransmissionCandidate | null>(null);
+
+  // Form state
+  const [genForm, setGenForm] = useState(defaultGenForm);
+  const [transForm, setTransForm] = useState(defaultTransForm);
+
+  // Dropdown state
+  const [showMonthDropdown, setShowMonthDropdown] = useState(false);
+  const [showRegionADropdown, setShowRegionADropdown] = useState(false);
+  const [showRegionBDropdown, setShowRegionBDropdown] = useState(false);
+
+  const anyModalOpen = showGenModal || showTransModal;
+
+  // Filter candidates for selected plan
+  const filteredGenCandidates = generationCandidates.filter(
+    c => c.expansionPlanId === selectedPlanId,
+  );
+  const filteredTransCandidates = transmissionCandidates.filter(
     c => c.expansionPlanId === selectedPlanId,
   );
 
-  const openCreateModal = () => {
-    if (!selectedPlanId) {
-      Alert.alert('No Plan Selected', 'Please select an expansion plan first');
-      return;
+  // Handle container layout change for dynamic sizing
+  const onContainerLayout = useCallback((event: LayoutChangeEvent) => {
+    const {width} = event.nativeEvent.layout;
+    setContainerWidth(width);
+  }, []);
+
+  // Calculate total table width for generation
+  const genTableWidth = Object.values(genColWidths).reduce((a, b) => a + b, 0);
+  const transTableWidth = Object.values(transColWidths).reduce((a, b) => a + b, 0);
+
+  const closeGenModal = useCallback(() => {
+    setShowGenModal(false);
+    setEditingGen(null);
+    setGenForm(defaultGenForm);
+    onModalVisibleChange(false);
+  }, [onModalVisibleChange]);
+
+  const closeTransModal = useCallback(() => {
+    setShowTransModal(false);
+    setEditingTrans(null);
+    setTransForm(defaultTransForm);
+    onModalVisibleChange(false);
+  }, [onModalVisibleChange]);
+
+  // Escape key handler
+  const handleKeyDown = useCallback((e: any) => {
+    const key = e.nativeEvent?.key || e.key;
+    if (key === 'Escape') {
+      if (showGenModal) closeGenModal();
+      else if (showTransModal) closeTransModal();
     }
-    setEditingCandidate(null);
-    setFormData(defaultFormData);
-    showModal();
+  }, [showGenModal, showTransModal, closeGenModal, closeTransModal]);
+
+  useEffect(() => {
+    if (anyModalOpen && containerRef.current) {
+      // @ts-ignore
+      containerRef.current.focus?.();
+    }
+  }, [anyModalOpen]);
+
+  // Column resize handlers
+  const handleResizeStart = (table: 'gen' | 'trans', column: string, startX: number) => {
+    const currentWidth = table === 'gen'
+      ? genColWidths[column as keyof typeof genColWidths]
+      : transColWidths[column as keyof typeof transColWidths];
+    setResizing({table, column, startX, startWidth: currentWidth});
   };
 
-  const openEditModal = (candidate: Candidate) => {
-    setEditingCandidate(candidate);
-    setFormData({
-      name: candidate.name,
-      maxCapacity: candidate.maxCapacity.toString(),
-      unitType: candidate.unitType,
+  const handleResizeMove = useCallback((pageX: number) => {
+    if (!resizing) return;
+    const diff = pageX - resizing.startX;
+    const newWidth = Math.max(50, resizing.startWidth + diff);
+
+    if (resizing.table === 'gen') {
+      setGenColWidths(prev => ({...prev, [resizing.column]: newWidth}));
+    } else {
+      setTransColWidths(prev => ({...prev, [resizing.column]: newWidth}));
+    }
+  }, [resizing]);
+
+  const handleResizeEnd = useCallback(() => {
+    setResizing(null);
+  }, []);
+
+  // Generation Candidate handlers
+  const openAddGenModal = () => {
+    setEditingGen(null);
+    setGenForm(defaultGenForm);
+    setShowGenModal(true);
+    onModalVisibleChange(true);
+  };
+
+  const openEditGenModal = (candidate: GenerationCandidate) => {
+    setEditingGen(candidate);
+    setGenForm({
+      units: candidate.units.join(':'),
+      capacity: candidate.capacity.toString(),
+      fixedCost: candidate.fixedCost.toString(),
+      startMonth: candidate.startMonth,
       startYear: candidate.startYear.toString(),
       endYear: candidate.endYear.toString(),
-      maxAdditionsPerYear: candidate.maxAdditionsPerYear.toString(),
-      maxAdditionsOverall: candidate.maxAdditionsOverall.toString(),
+      maxAdditionsPerYear: candidate.maxAdditionsPerYear?.toString() || '',
+      maxAdditionsOverall: candidate.maxAdditionsOverall?.toString() || '',
       isRetirement: candidate.isRetirement,
+      lifetime: candidate.lifetime.toString(),
     });
-    showModal();
+    setShowGenModal(true);
+    onModalVisibleChange(true);
   };
 
-  const handleSave = () => {
-    if (!formData.name.trim()) {
-      Alert.alert('Error', 'Name is required');
-      return;
-    }
-    if (!formData.maxCapacity || isNaN(Number(formData.maxCapacity))) {
-      Alert.alert('Error', 'Valid max capacity is required');
-      return;
-    }
+  const handleSaveGen = () => {
+    if (!selectedPlanId || !genForm.units.trim()) return;
 
     const candidateData = {
-      expansionPlanId: selectedPlanId!,
-      name: formData.name,
-      maxCapacity: Number(formData.maxCapacity),
-      unitType: formData.unitType,
-      startYear: Number(formData.startYear) || 2024,
-      endYear: Number(formData.endYear) || 2050,
-      maxAdditionsPerYear: Number(formData.maxAdditionsPerYear) || 0,
-      maxAdditionsOverall: Number(formData.maxAdditionsOverall) || 0,
-      isRetirement: formData.isRetirement,
+      expansionPlanId: selectedPlanId,
+      units: genForm.units.split(':').map(u => u.trim()).filter(u => u),
+      capacity: parseFloat(genForm.capacity) || 0,
+      fixedCost: parseFloat(genForm.fixedCost) || 0,
+      startMonth: genForm.startMonth,
+      startYear: parseInt(genForm.startYear, 10) || 2026,
+      endYear: parseInt(genForm.endYear, 10) || 2032,
+      maxAdditionsPerYear: genForm.maxAdditionsPerYear ? parseInt(genForm.maxAdditionsPerYear, 10) : null,
+      maxAdditionsOverall: genForm.maxAdditionsOverall ? parseInt(genForm.maxAdditionsOverall, 10) : null,
+      isRetirement: genForm.isRetirement,
+      lifetime: parseInt(genForm.lifetime, 10) || 32,
     };
 
-    if (editingCandidate) {
-      onUpdateCandidate({...candidateData, id: editingCandidate.id});
+    if (editingGen) {
+      onUpdateGenerationCandidate({...candidateData, id: editingGen.id});
     } else {
-      onCreateCandidate(candidateData);
+      onCreateGenerationCandidate(candidateData);
     }
-    hideModal();
+    closeGenModal();
   };
 
-  const handleDelete = (candidate: Candidate) => {
-    Alert.alert(
-      'Delete Candidate',
-      `Are you sure you want to delete "${candidate.name}"?`,
-      [
-        {text: 'Cancel', style: 'cancel'},
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => onDeleteCandidate(candidate.id),
-        },
-      ],
+  const handleDeleteGen = () => {
+    if (selectedGenIds.length > 0) {
+      onDeleteGenerationCandidates(selectedGenIds);
+      setSelectedGenIds([]);
+    }
+  };
+
+  const toggleGenSelection = (id: string) => {
+    setSelectedGenIds(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
   };
 
-  const renderCandidateItem = ({item}: {item: Candidate}) => (
-    <View style={styles.candidateItem}>
-      <View style={styles.candidateHeader}>
-        <Text style={styles.candidateName}>{item.name}</Text>
-        {item.isRetirement && (
-          <View style={styles.retirementBadge}>
-            <Text style={styles.retirementText}>Retirement</Text>
-          </View>
-        )}
-      </View>
-      <View style={styles.candidateDetails}>
-        <Text style={styles.detailText}>
-          {item.unitType} | {item.maxCapacity} MW
-        </Text>
-        <Text style={styles.detailText}>
-          Years: {item.startYear} - {item.endYear}
-        </Text>
-        <Text style={styles.detailText}>
-          Max/Year: {item.maxAdditionsPerYear} | Max Total:{' '}
-          {item.maxAdditionsOverall}
-        </Text>
-      </View>
-      <View style={styles.candidateActions}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => openEditModal(item)}>
-          <Text style={styles.actionText}>Edit</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.deleteButton]}
-          onPress={() => handleDelete(item)}>
-          <Text style={styles.deleteText}>Delete</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+  // Transmission Candidate handlers
+  const openAddTransModal = () => {
+    setEditingTrans(null);
+    setTransForm({
+      ...defaultTransForm,
+      regionA: effectiveRegions[0] || 'ERCOT',
+      regionB: effectiveRegions[1] || effectiveRegions[0] || 'SPP',
+    });
+    setShowTransModal(true);
+    onModalVisibleChange(true);
+  };
+
+  const openEditTransModal = (candidate: TransmissionCandidate) => {
+    setEditingTrans(candidate);
+    setTransForm({
+      regionA: candidate.regionA,
+      regionB: candidate.regionB,
+      capacityLimitIn: candidate.capacityLimitIn.toString(),
+      capacityLimitOut: candidate.capacityLimitOut.toString(),
+      cost: candidate.cost.toString(),
+      inflation: candidate.inflation.toString(),
+      startYear: candidate.startYear.toString(),
+      endYear: candidate.endYear.toString(),
+      maxAdditionsPerYear: candidate.maxAdditionsPerYear?.toString() || '',
+      maxAdditionsOverall: candidate.maxAdditionsOverall?.toString() || '',
+    });
+    setShowTransModal(true);
+    onModalVisibleChange(true);
+  };
+
+  const handleSaveTrans = () => {
+    if (!selectedPlanId || !transForm.regionA || !transForm.regionB) return;
+
+    const candidateData = {
+      expansionPlanId: selectedPlanId,
+      regionA: transForm.regionA as Region,
+      regionB: transForm.regionB as Region,
+      capacityLimitIn: parseFloat(transForm.capacityLimitIn) || 0,
+      capacityLimitOut: parseFloat(transForm.capacityLimitOut) || 0,
+      cost: parseFloat(transForm.cost) || 0,
+      inflation: parseFloat(transForm.inflation) || 1,
+      startYear: parseInt(transForm.startYear, 10) || 2026,
+      endYear: parseInt(transForm.endYear, 10) || 2032,
+      maxAdditionsPerYear: transForm.maxAdditionsPerYear ? parseInt(transForm.maxAdditionsPerYear, 10) : null,
+      maxAdditionsOverall: transForm.maxAdditionsOverall ? parseInt(transForm.maxAdditionsOverall, 10) : null,
+    };
+
+    if (editingTrans) {
+      onUpdateTransmissionCandidate({...candidateData, id: editingTrans.id});
+    } else {
+      onCreateTransmissionCandidate(candidateData);
+    }
+    closeTransModal();
+  };
+
+  const handleDeleteTrans = () => {
+    if (selectedTransIds.length > 0) {
+      onDeleteTransmissionCandidates(selectedTransIds);
+      setSelectedTransIds([]);
+    }
+  };
+
+  const toggleTransSelection = (id: string) => {
+    setSelectedTransIds(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const formatValue = (value: number | null): string => {
+    return value === null ? '-' : value.toString();
+  };
+
+  // Render resize handle
+  const renderResizeHandle = (table: 'gen' | 'trans', column: string) => (
+    <View
+      style={styles.resizeHandle}
+      // @ts-ignore - pointer events for Windows
+      onStartShouldSetResponder={() => true}
+      onResponderGrant={(e) => handleResizeStart(table, column, e.nativeEvent.pageX)}
+      onResponderMove={(e) => handleResizeMove(e.nativeEvent.pageX)}
+      onResponderRelease={handleResizeEnd}
+    />
   );
 
   if (!selectedPlanId) {
     return (
-      <View style={styles.emptyState}>
-        <Text style={styles.emptyText}>No Expansion Plan Selected</Text>
-        <Text style={styles.emptySubtext}>
-          Select a plan from the Home tab to manage candidates
-        </Text>
+      <View style={styles.container}>
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyText}>No Plan Selected</Text>
+          <Text style={styles.emptySubtext}>
+            Select a plan from the Home tab to manage candidates
+          </Text>
+        </View>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Candidates</Text>
-        <TouchableOpacity style={styles.createButton} onPress={openCreateModal}>
-          <Text style={styles.createButtonText}>+ Add Candidate</Text>
-        </TouchableOpacity>
-      </View>
-
-      {filteredCandidates.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>No candidates yet</Text>
-          <Text style={styles.emptySubtext}>
-            Add candidate units for this expansion plan
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredCandidates}
-          keyExtractor={item => item.id}
-          renderItem={renderCandidateItem}
-          contentContainerStyle={styles.list}
-        />
-      )}
-
-      <Modal visible={modalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {editingCandidate ? 'Edit Candidate' : 'New Candidate'}
-            </Text>
-
-            <Text style={styles.label}>Name</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.name}
-              onChangeText={text => setFormData({...formData, name: text})}
-              placeholder="Enter candidate name"
-            />
-
-            <Text style={styles.label}>Unit Type</Text>
-            <View style={styles.optionsRow}>
-              {UNIT_TYPES.map(type => (
-                <TouchableOpacity
-                  key={type}
-                  style={[
-                    styles.optionButton,
-                    formData.unitType === type && styles.optionSelected,
-                  ]}
-                  onPress={() => setFormData({...formData, unitType: type})}>
-                  <Text
-                    style={[
-                      styles.optionText,
-                      formData.unitType === type && styles.optionTextSelected,
-                    ]}>
-                    {type}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.label}>Max Capacity (MW)</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.maxCapacity}
-              onChangeText={text => setFormData({...formData, maxCapacity: text})}
-              placeholder="Enter max capacity"
-              keyboardType="numeric"
-            />
-
-            <View style={styles.row}>
-              <View style={styles.halfWidth}>
-                <Text style={styles.label}>Start Year</Text>
-                <TextInput
-                  style={styles.input}
-                  value={formData.startYear}
-                  onChangeText={text =>
-                    setFormData({...formData, startYear: text})
-                  }
-                  placeholder="2024"
-                  keyboardType="numeric"
-                />
-              </View>
-              <View style={styles.halfWidth}>
-                <Text style={styles.label}>End Year</Text>
-                <TextInput
-                  style={styles.input}
-                  value={formData.endYear}
-                  onChangeText={text => setFormData({...formData, endYear: text})}
-                  placeholder="2050"
-                  keyboardType="numeric"
-                />
+    <View
+      ref={containerRef}
+      style={styles.container}
+      onLayout={onContainerLayout}
+      // @ts-ignore
+      onKeyDown={anyModalOpen ? handleKeyDown : undefined}
+      onKeyUp={anyModalOpen ? handleKeyDown : undefined}
+      focusable={anyModalOpen}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {/* Generation Candidates Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleRow}>
+              <View style={styles.sectionIndicator} />
+              <View>
+                <Text style={styles.sectionTitle}>Generation Candidates for Addition</Text>
+                <Text style={styles.sectionSubtitle}>Configure generation capacity expansion options</Text>
               </View>
             </View>
-
-            <View style={styles.row}>
-              <View style={styles.halfWidth}>
-                <Text style={styles.label}>Max Additions/Year</Text>
-                <TextInput
-                  style={styles.input}
-                  value={formData.maxAdditionsPerYear}
-                  onChangeText={text =>
-                    setFormData({...formData, maxAdditionsPerYear: text})
-                  }
-                  placeholder="0"
-                  keyboardType="numeric"
-                />
-              </View>
-              <View style={styles.halfWidth}>
-                <Text style={styles.label}>Max Additions Total</Text>
-                <TextInput
-                  style={styles.input}
-                  value={formData.maxAdditionsOverall}
-                  onChangeText={text =>
-                    setFormData({...formData, maxAdditionsOverall: text})
-                  }
-                  placeholder="0"
-                  keyboardType="numeric"
-                />
-              </View>
-            </View>
-
-            <View style={styles.switchRow}>
-              <Text style={styles.label}>Is Retirement</Text>
-              <Switch
-                value={formData.isRetirement}
-                onValueChange={value =>
-                  setFormData({...formData, isRetirement: value})
-                }
-              />
-            </View>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={hideModal}>
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+            <View style={styles.actionButtons}>
+              <TouchableOpacity style={styles.primaryButton} onPress={openAddGenModal}>
+                <Text style={styles.primaryButtonText}>+ Add Unit</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-                <Text style={styles.saveButtonText}>
-                  {editingCandidate ? 'Update' : 'Create'}
-                </Text>
+              <TouchableOpacity
+                style={[styles.secondaryButton, selectedGenIds.length !== 1 && styles.buttonDisabled]}
+                onPress={() => selectedGenIds.length === 1 && openEditGenModal(filteredGenCandidates.find(c => c.id === selectedGenIds[0])!)}
+                disabled={selectedGenIds.length !== 1}>
+                <Text style={styles.secondaryButtonText}>Edit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.secondaryButton, selectedGenIds.length === 0 && styles.buttonDisabled]}
+                onPress={handleDeleteGen}
+                disabled={selectedGenIds.length === 0}>
+                <Text style={styles.secondaryButtonText}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={[styles.tableContainer, {minWidth: Math.max(genTableWidth, containerWidth - 48)}]}>
+            <ScrollView horizontal showsHorizontalScrollIndicator>
+              <View style={{minWidth: genTableWidth}}>
+                <View style={styles.tableHeader}>
+                  <View style={[styles.headerCellContainer, {width: genColWidths.checkbox}]}>
+                    <Text style={styles.headerCell}></Text>
+                  </View>
+                  <View style={[styles.headerCellContainer, {width: genColWidths.units}]}>
+                    <Text style={styles.headerCell}>UNITS</Text>
+                    {renderResizeHandle('gen', 'units')}
+                  </View>
+                  <View style={[styles.headerCellContainer, {width: genColWidths.capacity}]}>
+                    <Text style={styles.headerCell}>CAPACITY</Text>
+                    {renderResizeHandle('gen', 'capacity')}
+                  </View>
+                  <View style={[styles.headerCellContainer, {width: genColWidths.fixedCost}]}>
+                    <Text style={styles.headerCell}>FIXED COST</Text>
+                    {renderResizeHandle('gen', 'fixedCost')}
+                  </View>
+                  <View style={[styles.headerCellContainer, {width: genColWidths.startMonth}]}>
+                    <Text style={styles.headerCell}>START MONTH</Text>
+                    {renderResizeHandle('gen', 'startMonth')}
+                  </View>
+                  <View style={[styles.headerCellContainer, {width: genColWidths.startYear}]}>
+                    <Text style={styles.headerCell}>START YEAR</Text>
+                    {renderResizeHandle('gen', 'startYear')}
+                  </View>
+                  <View style={[styles.headerCellContainer, {width: genColWidths.endYear}]}>
+                    <Text style={styles.headerCell}>END YEAR</Text>
+                    {renderResizeHandle('gen', 'endYear')}
+                  </View>
+                  <View style={[styles.headerCellContainer, {width: genColWidths.maxPerYear}]}>
+                    <Text style={styles.headerCell}>ADD/YEAR</Text>
+                    {renderResizeHandle('gen', 'maxPerYear')}
+                  </View>
+                  <View style={[styles.headerCellContainer, {width: genColWidths.maxOverall}]}>
+                    <Text style={styles.headerCell}>ADD OVERALL</Text>
+                    {renderResizeHandle('gen', 'maxOverall')}
+                  </View>
+                  <View style={[styles.headerCellContainer, {width: genColWidths.retirement}]}>
+                    <Text style={styles.headerCell}>RETIREMENT</Text>
+                    {renderResizeHandle('gen', 'retirement')}
+                  </View>
+                  <View style={[styles.headerCellContainer, {width: genColWidths.lifetime}]}>
+                    <Text style={styles.headerCell}>LIFETIME</Text>
+                  </View>
+                </View>
+                {filteredGenCandidates.length === 0 ? (
+                  <View style={styles.emptyTable}>
+                    <Text style={styles.emptyTableText}>No generation candidates. Click "+ Add Unit" to create one.</Text>
+                  </View>
+                ) : (
+                  filteredGenCandidates.map(c => (
+                    <TouchableOpacity
+                      key={c.id}
+                      style={[styles.tableRow, selectedGenIds.includes(c.id) && styles.tableRowSelected]}
+                      onPress={() => toggleGenSelection(c.id)}>
+                      <View style={[styles.tableCell, {width: genColWidths.checkbox}]}>
+                        <View style={[styles.checkbox, selectedGenIds.includes(c.id) && styles.checkboxChecked]}>
+                          {selectedGenIds.includes(c.id) && <Text style={styles.checkmark}>✓</Text>}
+                        </View>
+                      </View>
+                      <Text style={[styles.tableCell, styles.cellText, {width: genColWidths.units}]} numberOfLines={1}>{c.units.join(':')}</Text>
+                      <Text style={[styles.tableCell, styles.cellText, {width: genColWidths.capacity}]}>{c.capacity.toLocaleString()}</Text>
+                      <Text style={[styles.tableCell, styles.cellTextGreen, {width: genColWidths.fixedCost}]}>${c.fixedCost.toFixed(2)}</Text>
+                      <Text style={[styles.tableCell, styles.cellText, {width: genColWidths.startMonth}]}>{c.startMonth}</Text>
+                      <Text style={[styles.tableCell, styles.cellText, {width: genColWidths.startYear}]}>{c.startYear}</Text>
+                      <Text style={[styles.tableCell, styles.cellText, {width: genColWidths.endYear}]}>{c.endYear}</Text>
+                      <Text style={[styles.tableCell, styles.cellText, {width: genColWidths.maxPerYear}]}>{formatValue(c.maxAdditionsPerYear)}</Text>
+                      <Text style={[styles.tableCell, styles.cellText, {width: genColWidths.maxOverall}]}>{formatValue(c.maxAdditionsOverall)}</Text>
+                      <View style={[styles.tableCell, {width: genColWidths.retirement}]}>
+                        <View style={[styles.badge, c.isRetirement ? styles.badgeAmber : styles.badgeGray]}>
+                          <Text style={[styles.badgeText, c.isRetirement ? styles.badgeTextAmber : styles.badgeTextGray]}>
+                            {c.isRetirement ? 'True' : 'False'}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={[styles.tableCell, styles.cellText, {width: genColWidths.lifetime}]}>{c.lifetime} yrs</Text>
+                    </TouchableOpacity>
+                  ))
+                )}
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+
+        {/* Transmission Candidates Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleRow}>
+              <View style={[styles.sectionIndicator, styles.indicatorYellow]} />
+              <View>
+                <Text style={styles.sectionTitle}>Transmission Candidates for Addition</Text>
+                <Text style={styles.sectionSubtitle}>Configure transmission capacity expansion options</Text>
+              </View>
+            </View>
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                style={styles.primaryButtonYellow}
+                onPress={openAddTransModal}>
+                <Text style={styles.primaryButtonText}>+ Add Link</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.secondaryButton, selectedTransIds.length !== 1 && styles.buttonDisabled]}
+                onPress={() => selectedTransIds.length === 1 && openEditTransModal(filteredTransCandidates.find(c => c.id === selectedTransIds[0])!)}
+                disabled={selectedTransIds.length !== 1}>
+                <Text style={styles.secondaryButtonText}>Edit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.secondaryButton, selectedTransIds.length === 0 && styles.buttonDisabled]}
+                onPress={handleDeleteTrans}
+                disabled={selectedTransIds.length === 0}>
+                <Text style={styles.secondaryButtonText}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={[styles.tableContainer, {minWidth: Math.max(transTableWidth, containerWidth - 48)}]}>
+            <ScrollView horizontal showsHorizontalScrollIndicator>
+              <View style={{minWidth: transTableWidth}}>
+                <View style={[styles.tableHeader, styles.tableHeaderYellow]}>
+                  <View style={[styles.headerCellContainer, {width: transColWidths.checkbox}]}>
+                    <Text style={styles.headerCellYellow}></Text>
+                  </View>
+                  <View style={[styles.headerCellContainer, {width: transColWidths.regionA}]}>
+                    <Text style={styles.headerCellYellow}>REGION A</Text>
+                    {renderResizeHandle('trans', 'regionA')}
+                  </View>
+                  <View style={[styles.headerCellContainer, {width: transColWidths.regionB}]}>
+                    <Text style={styles.headerCellYellow}>REGION B</Text>
+                    {renderResizeHandle('trans', 'regionB')}
+                  </View>
+                  <View style={[styles.headerCellContainer, {width: transColWidths.capacityIn}]}>
+                    <Text style={styles.headerCellYellow}>CAPACITY IN</Text>
+                    {renderResizeHandle('trans', 'capacityIn')}
+                  </View>
+                  <View style={[styles.headerCellContainer, {width: transColWidths.capacityOut}]}>
+                    <Text style={styles.headerCellYellow}>CAPACITY OUT</Text>
+                    {renderResizeHandle('trans', 'capacityOut')}
+                  </View>
+                  <View style={[styles.headerCellContainer, {width: transColWidths.cost}]}>
+                    <Text style={styles.headerCellYellow}>COST ($/MW-YR)</Text>
+                    {renderResizeHandle('trans', 'cost')}
+                  </View>
+                  <View style={[styles.headerCellContainer, {width: transColWidths.inflation}]}>
+                    <Text style={styles.headerCellYellow}>INFLATION</Text>
+                    {renderResizeHandle('trans', 'inflation')}
+                  </View>
+                  <View style={[styles.headerCellContainer, {width: transColWidths.startYear}]}>
+                    <Text style={styles.headerCellYellow}>START YEAR</Text>
+                    {renderResizeHandle('trans', 'startYear')}
+                  </View>
+                  <View style={[styles.headerCellContainer, {width: transColWidths.endYear}]}>
+                    <Text style={styles.headerCellYellow}>END YEAR</Text>
+                    {renderResizeHandle('trans', 'endYear')}
+                  </View>
+                  <View style={[styles.headerCellContainer, {width: transColWidths.maxPerYear}]}>
+                    <Text style={styles.headerCellYellow}>ADD/YEAR</Text>
+                    {renderResizeHandle('trans', 'maxPerYear')}
+                  </View>
+                  <View style={[styles.headerCellContainer, {width: transColWidths.maxOverall}]}>
+                    <Text style={styles.headerCellYellow}>ADD OVERALL</Text>
+                  </View>
+                </View>
+                {filteredTransCandidates.length === 0 ? (
+                  <View style={styles.emptyTable}>
+                    <Text style={styles.emptyTableText}>No transmission candidates. Click "+ Add Link" to create one.</Text>
+                  </View>
+                ) : (
+                  filteredTransCandidates.map(c => (
+                    <TouchableOpacity
+                      key={c.id}
+                      style={[styles.tableRow, selectedTransIds.includes(c.id) && styles.tableRowSelected]}
+                      onPress={() => toggleTransSelection(c.id)}>
+                      <View style={[styles.tableCell, {width: transColWidths.checkbox}]}>
+                        <View style={[styles.checkbox, selectedTransIds.includes(c.id) && styles.checkboxChecked]}>
+                          {selectedTransIds.includes(c.id) && <Text style={styles.checkmark}>✓</Text>}
+                        </View>
+                      </View>
+                      <Text style={[styles.tableCell, styles.cellText, {width: transColWidths.regionA}]}>{c.regionA}</Text>
+                      <Text style={[styles.tableCell, styles.cellText, {width: transColWidths.regionB}]}>{c.regionB}</Text>
+                      <Text style={[styles.tableCell, styles.cellText, {width: transColWidths.capacityIn}]}>{c.capacityLimitIn}</Text>
+                      <Text style={[styles.tableCell, styles.cellText, {width: transColWidths.capacityOut}]}>{c.capacityLimitOut}</Text>
+                      <Text style={[styles.tableCell, styles.cellTextGreen, {width: transColWidths.cost}]}>${c.cost}</Text>
+                      <Text style={[styles.tableCell, styles.cellText, {width: transColWidths.inflation}]}>{c.inflation}</Text>
+                      <Text style={[styles.tableCell, styles.cellText, {width: transColWidths.startYear}]}>{c.startYear}</Text>
+                      <Text style={[styles.tableCell, styles.cellText, {width: transColWidths.endYear}]}>{c.endYear}</Text>
+                      <Text style={[styles.tableCell, styles.cellText, {width: transColWidths.maxPerYear}]}>{formatValue(c.maxAdditionsPerYear)}</Text>
+                      <Text style={[styles.tableCell, styles.cellText, {width: transColWidths.maxOverall}]}>{formatValue(c.maxAdditionsOverall)}</Text>
+                    </TouchableOpacity>
+                  ))
+                )}
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* Generation Candidate Modal */}
+      {showGenModal && (
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={closeGenModal} />
+          <View style={styles.modal}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{editingGen ? 'Edit Generation Candidate' : 'Add Generation Candidate'}</Text>
+              <TouchableOpacity onPress={closeGenModal}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalBody}>
+              <View style={styles.formField}>
+                <Text style={styles.formLabel}>UNITS (separate multiple with colon)</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={genForm.units}
+                  onChangeText={v => setGenForm(f => ({...f, units: v}))}
+                  placeholder="Unit1:Unit2:Unit3"
+                  placeholderTextColor="#64748b"
+                />
+              </View>
+              <View style={styles.formRow}>
+                <View style={styles.formFieldHalf}>
+                  <Text style={styles.formLabel}>CAPACITY (MW)</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={genForm.capacity}
+                    onChangeText={v => setGenForm(f => ({...f, capacity: v}))}
+                    keyboardType="numeric"
+                    placeholderTextColor="#64748b"
+                  />
+                </View>
+                <View style={styles.formFieldHalf}>
+                  <Text style={styles.formLabel}>FIXED COST ($/kW-yr)</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={genForm.fixedCost}
+                    onChangeText={v => setGenForm(f => ({...f, fixedCost: v}))}
+                    keyboardType="numeric"
+                    placeholderTextColor="#64748b"
+                  />
+                </View>
+              </View>
+              <View style={styles.formRow}>
+                <View style={styles.formFieldHalf}>
+                  <Text style={styles.formLabel}>START MONTH</Text>
+                  <TouchableOpacity
+                    style={styles.formSelect}
+                    onPress={() => setShowMonthDropdown(!showMonthDropdown)}>
+                    <Text style={styles.formSelectText}>{genForm.startMonth}</Text>
+                    <Text style={styles.formSelectArrow}>▼</Text>
+                  </TouchableOpacity>
+                  {showMonthDropdown && (
+                    <ScrollView style={styles.dropdown}>
+                      {MONTHS.map(m => (
+                        <TouchableOpacity
+                          key={m}
+                          style={styles.dropdownItem}
+                          onPress={() => {
+                            setGenForm(f => ({...f, startMonth: m}));
+                            setShowMonthDropdown(false);
+                          }}>
+                          <Text style={styles.dropdownItemText}>{m}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
+                </View>
+                <View style={styles.formFieldHalf}>
+                  <Text style={styles.formLabel}>LIFETIME (years)</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={genForm.lifetime}
+                    onChangeText={v => setGenForm(f => ({...f, lifetime: v}))}
+                    keyboardType="numeric"
+                    placeholderTextColor="#64748b"
+                  />
+                </View>
+              </View>
+              <View style={styles.formRow}>
+                <View style={styles.formFieldHalf}>
+                  <Text style={styles.formLabel}>START YEAR</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={genForm.startYear}
+                    onChangeText={v => setGenForm(f => ({...f, startYear: v}))}
+                    keyboardType="numeric"
+                    placeholderTextColor="#64748b"
+                  />
+                </View>
+                <View style={styles.formFieldHalf}>
+                  <Text style={styles.formLabel}>END YEAR</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={genForm.endYear}
+                    onChangeText={v => setGenForm(f => ({...f, endYear: v}))}
+                    keyboardType="numeric"
+                    placeholderTextColor="#64748b"
+                  />
+                </View>
+              </View>
+              <View style={styles.formRow}>
+                <View style={styles.formFieldHalf}>
+                  <Text style={styles.formLabel}>MAX ADD/YEAR (blank = unlimited)</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={genForm.maxAdditionsPerYear}
+                    onChangeText={v => setGenForm(f => ({...f, maxAdditionsPerYear: v}))}
+                    keyboardType="numeric"
+                    placeholder="-"
+                    placeholderTextColor="#64748b"
+                  />
+                </View>
+                <View style={styles.formFieldHalf}>
+                  <Text style={styles.formLabel}>MAX ADD OVERALL (blank = unlimited)</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={genForm.maxAdditionsOverall}
+                    onChangeText={v => setGenForm(f => ({...f, maxAdditionsOverall: v}))}
+                    keyboardType="numeric"
+                    placeholder="-"
+                    placeholderTextColor="#64748b"
+                  />
+                </View>
+              </View>
+              <View style={styles.formSwitchRow}>
+                <Text style={styles.formLabel}>IS RETIREMENT</Text>
+                <Switch
+                  value={genForm.isRetirement}
+                  onValueChange={v => setGenForm(f => ({...f, isRetirement: v}))}
+                />
+              </View>
+            </ScrollView>
+            <View style={styles.modalFooter}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={closeGenModal}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={handleSaveGen}>
+                <Text style={styles.saveBtnText}>{editingGen ? 'Update' : 'Add'}</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
-      </Modal>
+      )}
+
+      {/* Transmission Candidate Modal */}
+      {showTransModal && (
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={closeTransModal} />
+          <View style={styles.modal}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{editingTrans ? 'Edit Transmission Candidate' : 'Add Transmission Candidate'}</Text>
+              <TouchableOpacity onPress={closeTransModal}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalBody}>
+              <View style={styles.formRow}>
+                <View style={styles.formFieldHalf}>
+                  <Text style={styles.formLabel}>REGION A</Text>
+                  <TouchableOpacity
+                    style={styles.formSelect}
+                    onPress={() => setShowRegionADropdown(!showRegionADropdown)}>
+                    <Text style={styles.formSelectText}>{transForm.regionA || 'Select...'}</Text>
+                    <Text style={styles.formSelectArrow}>▼</Text>
+                  </TouchableOpacity>
+                  {showRegionADropdown && (
+                    <ScrollView style={styles.dropdown}>
+                      {effectiveRegions.map(r => (
+                        <TouchableOpacity
+                          key={r}
+                          style={styles.dropdownItem}
+                          onPress={() => {
+                            setTransForm(f => ({...f, regionA: r}));
+                            setShowRegionADropdown(false);
+                          }}>
+                          <Text style={styles.dropdownItemText}>{r}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
+                </View>
+                <View style={styles.formFieldHalf}>
+                  <Text style={styles.formLabel}>REGION B</Text>
+                  <TouchableOpacity
+                    style={styles.formSelect}
+                    onPress={() => setShowRegionBDropdown(!showRegionBDropdown)}>
+                    <Text style={styles.formSelectText}>{transForm.regionB || 'Select...'}</Text>
+                    <Text style={styles.formSelectArrow}>▼</Text>
+                  </TouchableOpacity>
+                  {showRegionBDropdown && (
+                    <ScrollView style={styles.dropdown}>
+                      {effectiveRegions.filter(r => r !== transForm.regionA).map(r => (
+                        <TouchableOpacity
+                          key={r}
+                          style={styles.dropdownItem}
+                          onPress={() => {
+                            setTransForm(f => ({...f, regionB: r}));
+                            setShowRegionBDropdown(false);
+                          }}>
+                          <Text style={styles.dropdownItemText}>{r}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
+                </View>
+              </View>
+              <View style={styles.formRow}>
+                <View style={styles.formFieldHalf}>
+                  <Text style={styles.formLabel}>CAPACITY LIMIT IN (MW)</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={transForm.capacityLimitIn}
+                    onChangeText={v => setTransForm(f => ({...f, capacityLimitIn: v}))}
+                    keyboardType="numeric"
+                    placeholderTextColor="#64748b"
+                  />
+                </View>
+                <View style={styles.formFieldHalf}>
+                  <Text style={styles.formLabel}>CAPACITY LIMIT OUT (MW)</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={transForm.capacityLimitOut}
+                    onChangeText={v => setTransForm(f => ({...f, capacityLimitOut: v}))}
+                    keyboardType="numeric"
+                    placeholderTextColor="#64748b"
+                  />
+                </View>
+              </View>
+              <View style={styles.formRow}>
+                <View style={styles.formFieldHalf}>
+                  <Text style={styles.formLabel}>COST ($/MW-YR)</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={transForm.cost}
+                    onChangeText={v => setTransForm(f => ({...f, cost: v}))}
+                    keyboardType="numeric"
+                    placeholderTextColor="#64748b"
+                  />
+                </View>
+                <View style={styles.formFieldHalf}>
+                  <Text style={styles.formLabel}>INFLATION (%)</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={transForm.inflation}
+                    onChangeText={v => setTransForm(f => ({...f, inflation: v}))}
+                    keyboardType="numeric"
+                    placeholderTextColor="#64748b"
+                  />
+                </View>
+              </View>
+              <View style={styles.formRow}>
+                <View style={styles.formFieldHalf}>
+                  <Text style={styles.formLabel}>START YEAR</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={transForm.startYear}
+                    onChangeText={v => setTransForm(f => ({...f, startYear: v}))}
+                    keyboardType="numeric"
+                    placeholderTextColor="#64748b"
+                  />
+                </View>
+                <View style={styles.formFieldHalf}>
+                  <Text style={styles.formLabel}>END YEAR</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={transForm.endYear}
+                    onChangeText={v => setTransForm(f => ({...f, endYear: v}))}
+                    keyboardType="numeric"
+                    placeholderTextColor="#64748b"
+                  />
+                </View>
+              </View>
+              <View style={styles.formRow}>
+                <View style={styles.formFieldHalf}>
+                  <Text style={styles.formLabel}>MAX ADD/YEAR (blank = unlimited)</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={transForm.maxAdditionsPerYear}
+                    onChangeText={v => setTransForm(f => ({...f, maxAdditionsPerYear: v}))}
+                    keyboardType="numeric"
+                    placeholder="-"
+                    placeholderTextColor="#64748b"
+                  />
+                </View>
+                <View style={styles.formFieldHalf}>
+                  <Text style={styles.formLabel}>MAX ADD OVERALL (blank = unlimited)</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={transForm.maxAdditionsOverall}
+                    onChangeText={v => setTransForm(f => ({...f, maxAdditionsOverall: v}))}
+                    keyboardType="numeric"
+                    placeholder="-"
+                    placeholderTextColor="#64748b"
+                  />
+                </View>
+              </View>
+            </ScrollView>
+            <View style={styles.modalFooter}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={closeTransModal}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.saveBtn, styles.saveBtnYellow]} onPress={handleSaveTrans}>
+                <Text style={styles.saveBtnText}>{editingTrans ? 'Update' : 'Add'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
 
+import { colors } from '../styles/colors';
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#1e293b',
   },
-  header: {
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 24,
+    gap: 24,
+  },
+  section: {
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.2)',
+    overflow: 'hidden',
+  },
+  sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: 'rgba(59, 130, 246, 0.1)',
   },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  createButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  createButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  list: {
-    padding: 16,
-  },
-  candidateItem: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 12,
-  },
-  candidateHeader: {
+  sectionTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    gap: 12,
   },
-  candidateName: {
+  sectionIndicator: {
+    width: 4,
+    height: 40,
+    backgroundColor: colors.indicator,
+    borderRadius: 2,
+  },
+  indicatorYellow: {
+    backgroundColor: colors.indicatorYellow,
+  },
+  sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
+    color: colors.text,
   },
-  retirementBadge: {
-    backgroundColor: '#fff3e0',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginLeft: 8,
+  sectionSubtitle: {
+    fontSize: 13,
+    color: colors.textTertiary,
+    marginTop: 2,
   },
-  retirementText: {
-    fontSize: 12,
-    color: '#e65100',
-  },
-  candidateDetails: {
-    marginBottom: 12,
-  },
-  detailText: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 2,
-  },
-  candidateActions: {
+  actionButtons: {
     flexDirection: 'row',
     gap: 8,
   },
-  actionButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 4,
-    backgroundColor: '#e0e0e0',
+  primaryButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
   },
-  actionText: {
+  primaryButtonYellow: {
+    backgroundColor: '#ca8a04',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  primaryButtonText: {
+    color: colors.text,
     fontSize: 14,
-    color: '#333',
+    fontWeight: '500',
   },
-  deleteButton: {
-    backgroundColor: '#ffebee',
+  secondaryButton: {
+    backgroundColor: '#334155',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
   },
-  deleteText: {
-    color: '#d32f2f',
+  secondaryButtonText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  tableContainer: {
+    flex: 1,
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    borderBottomWidth: 1,
+    borderBottomColor: '#334155',
+  },
+  tableHeaderYellow: {
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+  },
+  headerCellContainer: {
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  headerCell: {
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#93c5fd',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  headerCellYellow: {
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#fde047',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  resizeHandle: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 8,
+    backgroundColor: colors.transparent,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(51, 65, 85, 0.5)',
+  },
+  tableRowSelected: {
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+  },
+  tableCell: {
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+  },
+  cellText: {
+    fontSize: 13,
+    color: '#cbd5e1',
+  },
+  cellTextGreen: {
+    fontSize: 13,
+    color: colors.green,
+    fontWeight: '500',
+  },
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderWidth: 1,
+    borderColor: colors.textQuaternary,
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.transparent,
+  },
+  checkboxChecked: {
+    backgroundColor: colors.indicator,
+    borderColor: colors.indicator,
+  },
+  checkmark: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+  },
+  badgeAmber: {
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  badgeGray: {
+    backgroundColor: 'rgba(100, 116, 139, 0.3)',
+    borderWidth: 1,
+    borderColor: 'rgba(100, 116, 139, 0.3)',
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  badgeTextAmber: {
+    color: colors.amber,
+  },
+  badgeTextGray: {
+    color: colors.gray,
+  },
+  emptyTable: {
+    padding: 32,
+    alignItems: 'center',
+  },
+  emptyTableText: {
+    color: colors.textQuaternary,
+    fontSize: 14,
   },
   emptyState: {
     flex: 1,
@@ -420,109 +1129,166 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#666',
+    color: colors.textTertiary,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#999',
+    color: colors.textQuaternary,
     marginTop: 8,
-    textAlign: 'center',
-    paddingHorizontal: 32,
   },
+  // Modal styles
   modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1000,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  modalContent: {
-    backgroundColor: '#fff',
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  },
+  modal: {
+    backgroundColor: '#1e293b',
     borderRadius: 12,
-    padding: 24,
-    width: '90%',
-    maxWidth: 450,
+    width: 500,
     maxHeight: '90%',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.3)',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#334155',
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: '600',
-    marginBottom: 8,
-    color: '#333',
+    color: colors.text,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    marginBottom: 16,
+  modalClose: {
+    fontSize: 20,
+    color: colors.textTertiary,
+    padding: 4,
   },
-  optionsRow: {
+  modalBody: {
+    padding: 20,
+    maxHeight: 400,
+  },
+  modalFooter: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 16,
-  },
-  optionButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  optionSelected: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
-  },
-  optionText: {
-    fontSize: 14,
-    color: '#333',
-  },
-  optionTextSelected: {
-    color: '#fff',
-  },
-  row: {
-    flexDirection: 'row',
+    justifyContent: 'flex-end',
     gap: 12,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#334155',
   },
-  halfWidth: {
+  formField: {
+    marginBottom: 16,
+  },
+  formRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  formFieldHalf: {
     flex: 1,
+    marginBottom: 16,
   },
-  switchRow: {
+  formLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textTertiary,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  formInput: {
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 6,
+    padding: 10,
+    fontSize: 14,
+    backgroundColor: '#0f172a',
+    color: colors.text,
+  },
+  formSelect: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 6,
+    padding: 10,
+    backgroundColor: '#0f172a',
+  },
+  formSelectText: {
+    fontSize: 14,
+    color: colors.text,
+  },
+  formSelectArrow: {
+    fontSize: 10,
+    color: colors.textTertiary,
+  },
+  formSwitchRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
   },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-    marginTop: 8,
+  dropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: '#1e293b',
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 6,
+    marginTop: 4,
+    zIndex: 100,
+    maxHeight: 150,
   },
-  cancelButton: {
-    paddingHorizontal: 20,
+  dropdownItem: {
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#334155',
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    color: colors.text,
+  },
+  cancelBtn: {
     paddingVertical: 10,
-  },
-  cancelButtonText: {
-    color: '#666',
-    fontSize: 16,
-  },
-  saveButton: {
-    backgroundColor: '#007AFF',
     paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#475569',
   },
-  saveButtonText: {
-    color: '#fff',
-    fontSize: 16,
+  cancelBtnText: {
+    color: colors.textTertiary,
+    fontSize: 14,
+  },
+  saveBtn: {
+    backgroundColor: colors.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 6,
+  },
+  saveBtnYellow: {
+    backgroundColor: '#ca8a04',
+  },
+  saveBtnText: {
+    color: colors.text,
+    fontSize: 14,
     fontWeight: '600',
   },
 });

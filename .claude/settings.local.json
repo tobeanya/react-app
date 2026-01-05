@@ -11,7 +11,25 @@
       "Bash(netstat:*)",
       "Bash(findstr:*)",
       "Bash(npx @react-native-community/cli run-windows:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(gh repo create:*)",
+      "Bash(git remote add:*)",
+      "Bash(git push:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(gh auth:*)",
+      "WebFetch(domain:claude.ai)",
+      "Bash(timeout /t 30 /nobreak)",
+      "Bash(npm uninstall:*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:microsoft.github.io)",
+      "Bash(powershell -Command:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File create-icons.ps1)",
+      "Bash(del \"C:\\\\Users\\\\tobet\\\\Projects\\\\react-app\\\\create-icons.ps1\")",
+      "Bash(npm ls:*)",
+      "Bash(timeout /t 60 /nobreak)",
+      "Bash(node convert-csv.js:*)"
     ]
   }
 }

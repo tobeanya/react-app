@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useRef, useCallback, useEffect} from 'react';
 import {
   View,
   Text,
@@ -32,16 +32,33 @@ export function HomePage({
   onModalVisibleChange,
 }: Props) {
   const [modalVisible, setModalVisible] = useState(false);
+  const containerRef = useRef<View>(null);
 
   const showModal = () => {
     setModalVisible(true);
     onModalVisibleChange(true);
   };
 
-  const hideModal = () => {
+  const hideModal = useCallback(() => {
     setModalVisible(false);
     onModalVisibleChange(false);
-  };
+  }, [onModalVisibleChange]);
+
+  // Handle escape key
+  const handleKeyDown = useCallback((e: any) => {
+    const key = e.nativeEvent?.key || e.key;
+    if (key === 'Escape' && modalVisible) {
+      hideModal();
+    }
+  }, [modalVisible, hideModal]);
+
+  // Focus container when modal opens
+  useEffect(() => {
+    if (modalVisible && containerRef.current) {
+      // @ts-ignore
+      containerRef.current.focus?.();
+    }
+  }, [modalVisible]);
   const [editingPlan, setEditingPlan] = useState<ExpansionPlan | null>(null);
   const [copyingPlanId, setCopyingPlanId] = useState<string | null>(null);
   const [planName, setPlanName] = useState('');
@@ -157,7 +174,13 @@ export function HomePage({
   );
 
   return (
-    <View style={styles.container}>
+    <View
+      ref={containerRef}
+      style={styles.container}
+      // @ts-ignore - keyboard events for RN Windows
+      onKeyDown={modalVisible ? handleKeyDown : undefined}
+      onKeyUp={modalVisible ? handleKeyDown : undefined}
+      focusable={modalVisible}>
       <View style={styles.header}>
         <Text style={styles.title}>Expansion Plans</Text>
         <TouchableOpacity style={styles.createButton} onPress={openCreateModal}>
@@ -183,22 +206,35 @@ export function HomePage({
 
       {modalVisible && (
         <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalBackdrop}
+            activeOpacity={1}
+            onPress={hideModal}
+          />
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {copyingPlanId
-                ? 'Copy Expansion Plan'
-                : editingPlan
-                ? 'Rename Plan'
-                : 'New Expansion Plan'}
-            </Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {copyingPlanId
+                  ? 'Copy Expansion Plan'
+                  : editingPlan
+                  ? 'Rename Plan'
+                  : 'New Expansion Plan'}
+              </Text>
+              <TouchableOpacity onPress={hideModal}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
 
-            <Text style={styles.label}>Plan Name</Text>
-            <TextInput
-              style={styles.input}
-              value={planName}
-              onChangeText={setPlanName}
-              placeholder="Enter plan name"
-            />
+            <View style={styles.modalBody}>
+              <Text style={styles.label}>Plan Name</Text>
+              <TextInput
+                style={styles.input}
+                value={planName}
+                onChangeText={setPlanName}
+                placeholder="Enter plan name"
+                placeholderTextColor="#94a3b8"
+              />
+            </View>
 
             <View style={styles.modalActions}>
               <TouchableOpacity
@@ -219,47 +255,51 @@ export function HomePage({
   );
 }
 
+import { colors } from '../styles/colors';
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: colors.backgroundDark,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: colors.border,
   },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
+    color: colors.text,
   },
   createButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
   },
   createButtonText: {
-    color: '#fff',
+    color: colors.text,
     fontWeight: '600',
   },
   list: {
     padding: 16,
   },
   planItem: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.backgroundLight,
     borderRadius: 8,
     padding: 16,
     marginBottom: 12,
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: colors.borderLight,
   },
   planItemSelected: {
-    borderColor: '#007AFF',
+    borderColor: colors.indicator,
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
   },
   planHeader: {
     flexDirection: 'row',
@@ -274,10 +314,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 4,
+    color: colors.text,
   },
   planDetails: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textTertiary,
   },
   statusBadge: {
     paddingHorizontal: 12,
@@ -286,20 +327,24 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   activeBadge: {
-    backgroundColor: '#e8f5e9',
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
   },
   inactiveBadge: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: 'rgba(51, 65, 85, 0.5)',
+    borderWidth: 1,
+    borderColor: 'rgba(71, 85, 105, 0.3)',
   },
   statusText: {
     fontSize: 12,
     fontWeight: '600',
   },
   activeText: {
-    color: '#2e7d32',
+    color: colors.green,
   },
   inactiveText: {
-    color: '#666',
+    color: colors.textTertiary,
   },
   planActions: {
     flexDirection: 'row',
@@ -309,17 +354,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 4,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: 'rgba(51, 65, 85, 0.8)',
   },
   actionText: {
     fontSize: 14,
-    color: '#333',
+    color: colors.textSecondary,
   },
   deleteButton: {
-    backgroundColor: '#ffebee',
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
   },
   deleteText: {
-    color: '#d32f2f',
+    color: colors.red,
   },
   emptyState: {
     flex: 1,
@@ -329,11 +376,11 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#666',
+    color: colors.textTertiary,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#999',
+    color: colors.textQuaternary,
     marginTop: 8,
   },
   modalOverlay: {
@@ -342,61 +389,93 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000,
   },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1e293b',
     borderRadius: 12,
-    padding: 24,
+    padding: 0,
     width: 350,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.3)',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#334155',
   },
   modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  modalClose: {
     fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 20,
+    color: colors.textTertiary,
+    padding: 4,
+  },
+  modalBody: {
+    padding: 20,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 8,
-    color: '#333',
+    color: '#cbd5e1',
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: 'rgba(71, 85, 105, 0.5)',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
     marginBottom: 16,
-    backgroundColor: '#fafafa',
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
     height: 44,
+    color: colors.text,
   },
   modalActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 12,
-    marginTop: 8,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#334155',
   },
   cancelButton: {
     paddingHorizontal: 20,
     paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#475569',
   },
   cancelButtonText: {
-    color: '#666',
-    fontSize: 16,
+    color: colors.textTertiary,
+    fontSize: 14,
+    fontWeight: '600',
   },
   saveButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: colors.primary,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
   },
   saveButtonText: {
-    color: '#fff',
-    fontSize: 16,
+    color: colors.text,
+    fontSize: 14,
     fontWeight: '600',
   },
 });

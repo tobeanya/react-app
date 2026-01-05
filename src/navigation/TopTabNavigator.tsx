@@ -5,17 +5,23 @@ import {SettingsPage} from '../pages/SettingsPage';
 import {CandidatesPage} from '../pages/CandidatesPage';
 import {SolverStatusPage} from '../pages/SolverStatusPage';
 import {SolverResultsPage} from '../pages/SolverResultsPage';
+import {NPVResultsPage} from '../pages/NPVResultsPage';
+import {UnitAdditionResultsPage} from '../pages/UnitAdditionResultsPage';
+import {UnitRetirementResultsPage} from '../pages/UnitRetirementResultsPage';
 import {
   ExpansionPlan,
   GenerationCandidate,
   TransmissionCandidate,
   SolverLog,
   SolverResult,
+  NPVResult,
+  UnitAdditionResult,
+  UnitRetirementResult,
   SolverStatusType,
   SAMPLE_STUDIES,
 } from '../types';
 
-type TabName = 'Home' | 'Settings' | 'Candidates' | 'Status' | 'Results';
+type TabName = 'Home' | 'Settings' | 'Candidates' | 'Status' | 'Results' | 'NPV Results' | 'Additions' | 'Retirements';
 
 interface Props {
   expansionPlans: ExpansionPlan[];
@@ -23,6 +29,9 @@ interface Props {
   transmissionCandidates: TransmissionCandidate[];
   solverLogs: SolverLog[];
   solverResults: SolverResult[];
+  npvResults: NPVResult[];
+  unitAdditionResults: UnitAdditionResult[];
+  unitRetirementResults: UnitRetirementResult[];
   solverStatus: SolverStatusType;
   selectedPlanId: string | null;
   isModalOpen: boolean;
@@ -46,6 +55,9 @@ export function TopTabNavigator({
   transmissionCandidates,
   solverLogs,
   solverResults,
+  npvResults,
+  unitAdditionResults,
+  unitRetirementResults,
   solverStatus,
   selectedPlanId,
   isModalOpen,
@@ -72,7 +84,7 @@ export function TopTabNavigator({
     return study?.regions || [];
   };
 
-  const tabs: TabName[] = ['Home', 'Settings', 'Candidates', 'Status', 'Results'];
+  const tabs: TabName[] = ['Home', 'Settings', 'Candidates', 'Status', 'Results', 'NPV Results', 'Additions', 'Retirements'];
 
   return (
     <View style={styles.container}>
@@ -148,6 +160,24 @@ export function TopTabNavigator({
         {activeTab === 'Results' && (
           <SolverResultsPage
             solverResults={solverResults}
+            onModalVisibleChange={onModalVisibleChange}
+          />
+        )}
+        {activeTab === 'NPV Results' && (
+          <NPVResultsPage
+            npvResults={npvResults}
+            onModalVisibleChange={onModalVisibleChange}
+          />
+        )}
+        {activeTab === 'Additions' && (
+          <UnitAdditionResultsPage
+            unitAdditionResults={unitAdditionResults}
+            onModalVisibleChange={onModalVisibleChange}
+          />
+        )}
+        {activeTab === 'Retirements' && (
+          <UnitRetirementResultsPage
+            unitRetirementResults={unitRetirementResults}
             onModalVisibleChange={onModalVisibleChange}
           />
         )}

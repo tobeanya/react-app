@@ -9,11 +9,17 @@ import {
   TransmissionCandidate,
   SolverLog,
   SolverResult,
+  NPVResult,
+  UnitAdditionResult,
+  UnitRetirementResult,
   SolverStatusType,
   DEFAULT_SETTINGS,
   SAMPLE_SOLVER_LOGS,
 } from './src/types';
 import {SOLVER_RESULTS_DATA} from './src/data/solverResults';
+import {NPV_RESULTS_DATA} from './src/data/npvResults';
+import {UNIT_ADDITION_RESULTS_DATA} from './src/data/unitAdditionResults';
+import {UNIT_RETIREMENT_RESULTS_DATA} from './src/data/unitRetirementResults';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -36,6 +42,9 @@ function AppContent() {
   const [transmissionCandidates, setTransmissionCandidates] = useState<TransmissionCandidate[]>([]);
   const [solverLogs, setSolverLogs] = useState<SolverLog[]>(SAMPLE_SOLVER_LOGS);
   const [solverResults, setSolverResults] = useState<SolverResult[]>(SOLVER_RESULTS_DATA);
+  const [npvResults, setNpvResults] = useState<NPVResult[]>(NPV_RESULTS_DATA);
+  const [unitAdditionResults, setUnitAdditionResults] = useState<UnitAdditionResult[]>(UNIT_ADDITION_RESULTS_DATA);
+  const [unitRetirementResults, setUnitRetirementResults] = useState<UnitRetirementResult[]>(UNIT_RETIREMENT_RESULTS_DATA);
   const [solverStatus, setSolverStatus] = useState<SolverStatusType>('ready');
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -166,6 +175,9 @@ function AppContent() {
         transmissionCandidates={transmissionCandidates}
         solverLogs={solverLogs}
         solverResults={solverResults}
+        npvResults={npvResults}
+        unitAdditionResults={unitAdditionResults}
+        unitRetirementResults={unitRetirementResults}
         solverStatus={solverStatus}
         selectedPlanId={selectedPlanId}
         isModalOpen={isModalOpen}

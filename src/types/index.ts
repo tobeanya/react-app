@@ -158,6 +158,64 @@ export interface SolverResult {
 // Solver Status
 export type SolverStatusType = 'ready' | 'running' | 'paused' | 'completed' | 'error';
 
+// NPV Result Row
+export interface NPVResult {
+  id: string;
+  expansionPlanId: string;
+  study: string;
+  iteration: number;
+  evalYear: number;
+  stage: string;
+  year: number;
+  candidate: string;
+  loleCapacity: number;
+  discLoleCapacity: number;
+  margin: number;
+  discMargin: number;
+  totalCost: number;
+  discTotalCost: number;
+  prodCost: number;
+  discProdCost: number;
+  fuelCost: number;
+  discFuelCost: number;
+}
+
+// Unit Addition Result
+export type TechnologyType = 'Combined Cycle' | 'Solar PV' | 'Wind' | 'Battery' | 'Gas Turbine' | 'Nuclear';
+
+export interface UnitAdditionResult {
+  id: string;
+  expansionPlanId: string;
+  candidate: string;
+  technology: TechnologyType;
+  totalCapacity: number;
+  year2026: number;
+  year2027: number;
+  year2028: number;
+  year2029: number;
+  year2030: number;
+  capex: number;
+  region: Region;
+}
+
+// Unit Retirement Result
+export interface UnitRetirementResult {
+  id: string;
+  expansionPlanId: string;
+  candidate: string;
+  technology: string;
+  totalCapacity: number;
+  year2026: number;
+  year2027: number;
+  year2028: number;
+  year2029: number;
+  year2030: number;
+  omCost: number;
+  region: Region;
+}
+
+export const TECHNOLOGY_TYPES: TechnologyType[] = ['Combined Cycle', 'Solar PV', 'Wind', 'Battery', 'Gas Turbine', 'Nuclear'];
+
 export const REGIONS: Region[] = ['ERCOT', 'SPP', 'MISO', 'PJM'];
 export const MONTHS: Month[] = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const SOLVER_TYPES: SolverType[] = ['Simple', 'Normal'];

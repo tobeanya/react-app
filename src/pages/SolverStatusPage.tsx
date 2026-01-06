@@ -307,7 +307,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   headerCellText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     color: colors.indicatorGreen,
     letterSpacing: 0.5,
@@ -337,22 +337,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cellText: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#cbd5e1',
   },
   cellTextMono: {
-    fontSize: 13,
+    fontSize: 14,
     color: colors.textTertiary,
     fontFamily: 'monospace',
   },
   logTypeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 4,
     alignSelf: 'flex-start',
   },
   logTypeBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
   },
   logTypeInfo: {
@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   statLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '600',
     color: colors.textTertiary,
     letterSpacing: 0.5,

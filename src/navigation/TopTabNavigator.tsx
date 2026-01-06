@@ -3,6 +3,7 @@ import {View, Text, StyleSheet, TouchableOpacity, ScrollView} from 'react-native
 import {HomePage} from '../pages/HomePage';
 import {SettingsPage} from '../pages/SettingsPage';
 import {CandidatesPage} from '../pages/CandidatesPage';
+import {RunPage} from '../pages/RunPage';
 import {SolverStatusPage} from '../pages/SolverStatusPage';
 import {SolverResultsPage} from '../pages/SolverResultsPage';
 import {NPVResultsPage} from '../pages/NPVResultsPage';
@@ -21,7 +22,7 @@ import {
   SAMPLE_STUDIES,
 } from '../types';
 
-type TabName = 'Home' | 'Settings' | 'Candidates' | 'Status' | 'Results' | 'NPV Results' | 'Additions' | 'Retirements';
+type TabName = 'Home' | 'Settings' | 'Candidates' | 'Run' | 'Status' | 'Results' | 'NPV Results' | 'Additions' | 'Retirements';
 
 interface Props {
   expansionPlans: ExpansionPlan[];
@@ -46,6 +47,10 @@ interface Props {
   onCreateTransmissionCandidate: (candidate: Omit<TransmissionCandidate, 'id'>) => void;
   onUpdateTransmissionCandidate: (candidate: TransmissionCandidate) => void;
   onDeleteTransmissionCandidates: (ids: string[]) => void;
+  onStartSolver: () => void;
+  onStopSolver: () => void;
+  onPauseSolver: () => void;
+  onSaveAll: () => void;
   onModalVisibleChange: (visible: boolean) => void;
 }
 
@@ -72,6 +77,10 @@ export function TopTabNavigator({
   onCreateTransmissionCandidate,
   onUpdateTransmissionCandidate,
   onDeleteTransmissionCandidates,
+  onStartSolver,
+  onStopSolver,
+  onPauseSolver,
+  onSaveAll,
   onModalVisibleChange,
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabName>('Home');
@@ -84,7 +93,7 @@ export function TopTabNavigator({
     return study?.regions || [];
   };
 
-  const tabs: TabName[] = ['Home', 'Settings', 'Candidates', 'Status', 'Results', 'NPV Results', 'Additions', 'Retirements'];
+  const tabs: TabName[] = ['Home', 'Settings', 'Candidates', 'Run', 'Status', 'Results', 'NPV Results', 'Additions', 'Retirements'];
 
   return (
     <View style={styles.container}>
@@ -132,6 +141,7 @@ export function TopTabNavigator({
             expansionPlans={expansionPlans}
             onSelectPlan={onSelectPlan}
             onUpdatePlan={onUpdatePlan}
+            onSaveAll={onSaveAll}
             onModalVisibleChange={onModalVisibleChange}
           />
         )}
@@ -147,6 +157,18 @@ export function TopTabNavigator({
             onCreateTransmissionCandidate={onCreateTransmissionCandidate}
             onUpdateTransmissionCandidate={onUpdateTransmissionCandidate}
             onDeleteTransmissionCandidates={onDeleteTransmissionCandidates}
+            onModalVisibleChange={onModalVisibleChange}
+          />
+        )}
+        {activeTab === 'Run' && (
+          <RunPage
+            expansionPlans={expansionPlans}
+            selectedPlanId={selectedPlanId}
+            onSelectPlan={onSelectPlan}
+            onStartSolver={onStartSolver}
+            onStopSolver={onStopSolver}
+            onPauseSolver={onPauseSolver}
+            solverStatus={solverStatus}
             onModalVisibleChange={onModalVisibleChange}
           />
         )}

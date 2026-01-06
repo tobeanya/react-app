@@ -8,12 +8,12 @@
 
   <Identity
     Name="ReactApp"
-    Publisher="CN=tobet"
-    Version="1.0.0.0" />
+    Publisher="CN=PowerGEM"
+    Version="1.0.0.1" />
 
   <Properties>
     <DisplayName>Expansion Planning</DisplayName>
-    <PublisherDisplayName>tobet</PublisherDisplayName>
+    <PublisherDisplayName>PowerGEM</PublisherDisplayName>
     <Logo>Images\StoreLogo.png</Logo>
   </Properties>
 

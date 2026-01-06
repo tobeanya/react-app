@@ -437,11 +437,11 @@ export function CandidatesPage({
                     {renderResizeHandle('gen', 'endYear')}
                   </View>
                   <View style={[styles.headerCellContainer, {width: genColWidths.maxPerYear}]}>
-                    <Text style={styles.headerCell}>ADD/YEAR</Text>
+                    <Text style={styles.headerCell}>MAX ADDITIONS PER YEAR</Text>
                     {renderResizeHandle('gen', 'maxPerYear')}
                   </View>
                   <View style={[styles.headerCellContainer, {width: genColWidths.maxOverall}]}>
-                    <Text style={styles.headerCell}>ADD OVERALL</Text>
+                    <Text style={styles.headerCell}>MAX ADDITIONS OVERALL</Text>
                     {renderResizeHandle('gen', 'maxOverall')}
                   </View>
                   <View style={[styles.headerCellContainer, {width: genColWidths.retirement}]}>
@@ -505,7 +505,7 @@ export function CandidatesPage({
               <TouchableOpacity
                 style={styles.primaryButtonYellow}
                 onPress={openAddTransModal}>
-                <Text style={styles.primaryButtonText}>+ Add Link</Text>
+                <Text style={styles.primaryButtonText}>+ Add Tie</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.secondaryButton, selectedTransIds.length !== 1 && styles.buttonDisabled]}
@@ -562,11 +562,11 @@ export function CandidatesPage({
                     {renderResizeHandle('trans', 'endYear')}
                   </View>
                   <View style={[styles.headerCellContainer, {width: transColWidths.maxPerYear}]}>
-                    <Text style={styles.headerCellYellow}>ADD/YEAR</Text>
+                    <Text style={styles.headerCellYellow}>MAX ADDITIONS PER YEAR</Text>
                     {renderResizeHandle('trans', 'maxPerYear')}
                   </View>
                   <View style={[styles.headerCellContainer, {width: transColWidths.maxOverall}]}>
-                    <Text style={styles.headerCellYellow}>ADD OVERALL</Text>
+                    <Text style={styles.headerCellYellow}>MAX ADDITIONS OVERALL</Text>
                   </View>
                 </View>
                 {filteredTransCandidates.length === 0 ? (
@@ -707,7 +707,7 @@ export function CandidatesPage({
               </View>
               <View style={styles.formRow}>
                 <View style={styles.formFieldHalf}>
-                  <Text style={styles.formLabel}>MAX ADD/YEAR (blank = unlimited)</Text>
+                  <Text style={styles.formLabel}>MAX ADDITIONS PER YEAR (blank = unlimited)</Text>
                   <TextInput
                     style={styles.formInput}
                     value={genForm.maxAdditionsPerYear}
@@ -718,7 +718,7 @@ export function CandidatesPage({
                   />
                 </View>
                 <View style={styles.formFieldHalf}>
-                  <Text style={styles.formLabel}>MAX ADD OVERALL (blank = unlimited)</Text>
+                  <Text style={styles.formLabel}>MAX ADDITIONS OVERALL (blank = unlimited)</Text>
                   <TextInput
                     style={styles.formInput}
                     value={genForm.maxAdditionsOverall}
@@ -879,7 +879,7 @@ export function CandidatesPage({
               </View>
               <View style={styles.formRow}>
                 <View style={styles.formFieldHalf}>
-                  <Text style={styles.formLabel}>MAX ADD/YEAR (blank = unlimited)</Text>
+                  <Text style={styles.formLabel}>MAX ADDITIONS PER YEAR (blank = unlimited)</Text>
                   <TextInput
                     style={styles.formInput}
                     value={transForm.maxAdditionsPerYear}
@@ -890,7 +890,7 @@ export function CandidatesPage({
                   />
                 </View>
                 <View style={styles.formFieldHalf}>
-                  <Text style={styles.formLabel}>MAX ADD OVERALL (blank = unlimited)</Text>
+                  <Text style={styles.formLabel}>MAX ADDITIONS OVERALL (blank = unlimited)</Text>
                   <TextInput
                     style={styles.formInput}
                     value={transForm.maxAdditionsOverall}

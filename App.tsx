@@ -1,7 +1,8 @@
-import React, {useState} from 'react';
-import {StatusBar, StyleSheet, useColorScheme, View} from 'react-native';
+import React, {useState, useEffect, useCallback} from 'react';
+import {StatusBar, StyleSheet, useColorScheme, View, Alert} from 'react-native';
 import {SafeAreaProvider, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {NavigationContainer} from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {TopTabNavigator} from './src/navigation/TopTabNavigator';
 import {
   ExpansionPlan,
@@ -16,10 +17,6 @@ import {
   DEFAULT_SETTINGS,
   SAMPLE_SOLVER_LOGS,
 } from './src/types';
-import {SOLVER_RESULTS_DATA} from './src/data/solverResults';
-import {NPV_RESULTS_DATA} from './src/data/npvResults';
-import {UNIT_ADDITION_RESULTS_DATA} from './src/data/unitAdditionResults';
-import {UNIT_RETIREMENT_RESULTS_DATA} from './src/data/unitRetirementResults';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -34,6 +31,19 @@ function App() {
   );
 }
 
+const STORAGE_KEY = 'expansion_planning_data';
+
+interface StoredData {
+  expansionPlans: ExpansionPlan[];
+  generationCandidates: GenerationCandidate[];
+  transmissionCandidates: TransmissionCandidate[];
+  solverResults: SolverResult[];
+  npvResults: NPVResult[];
+  unitAdditionResults: UnitAdditionResult[];
+  unitRetirementResults: UnitRetirementResult[];
+  selectedPlanId: string | null;
+}
+
 function AppContent() {
   const safeAreaInsets = useSafeAreaInsets();
 
@@ -41,13 +51,69 @@ function AppContent() {
   const [generationCandidates, setGenerationCandidates] = useState<GenerationCandidate[]>([]);
   const [transmissionCandidates, setTransmissionCandidates] = useState<TransmissionCandidate[]>([]);
   const [solverLogs, setSolverLogs] = useState<SolverLog[]>(SAMPLE_SOLVER_LOGS);
-  const [solverResults, setSolverResults] = useState<SolverResult[]>(SOLVER_RESULTS_DATA);
-  const [npvResults, setNpvResults] = useState<NPVResult[]>(NPV_RESULTS_DATA);
-  const [unitAdditionResults, setUnitAdditionResults] = useState<UnitAdditionResult[]>(UNIT_ADDITION_RESULTS_DATA);
-  const [unitRetirementResults, setUnitRetirementResults] = useState<UnitRetirementResult[]>(UNIT_RETIREMENT_RESULTS_DATA);
+  const [solverResults, setSolverResults] = useState<SolverResult[]>([]);
+  const [npvResults, setNpvResults] = useState<NPVResult[]>([]);
+  const [unitAdditionResults, setUnitAdditionResults] = useState<UnitAdditionResult[]>([]);
+  const [unitRetirementResults, setUnitRetirementResults] = useState<UnitRetirementResult[]>([]);
   const [solverStatus, setSolverStatus] = useState<SolverStatusType>('ready');
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load saved data on startup
+  useEffect(() => {
+    const loadSavedData = async () => {
+      try {
+        const savedData = await AsyncStorage.getItem(STORAGE_KEY);
+        if (savedData) {
+          const data: StoredData = JSON.parse(savedData);
+          setExpansionPlans(data.expansionPlans || []);
+          setGenerationCandidates(data.generationCandidates || []);
+          setTransmissionCandidates(data.transmissionCandidates || []);
+          setSolverResults(data.solverResults || []);
+          setNpvResults(data.npvResults || []);
+          setUnitAdditionResults(data.unitAdditionResults || []);
+          setUnitRetirementResults(data.unitRetirementResults || []);
+          setSelectedPlanId(data.selectedPlanId || null);
+        }
+      } catch (error) {
+        console.error('Failed to load saved data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadSavedData();
+  }, []);
+
+  // Save all data handler
+  const handleSaveAll = useCallback(async () => {
+    try {
+      const dataToSave: StoredData = {
+        expansionPlans,
+        generationCandidates,
+        transmissionCandidates,
+        solverResults,
+        npvResults,
+        unitAdditionResults,
+        unitRetirementResults,
+        selectedPlanId,
+      };
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
+      Alert.alert('Success', 'All data saved successfully!');
+    } catch (error) {
+      console.error('Failed to save data:', error);
+      Alert.alert('Error', 'Failed to save data. Please try again.');
+    }
+  }, [
+    expansionPlans,
+    generationCandidates,
+    transmissionCandidates,
+    solverResults,
+    npvResults,
+    unitAdditionResults,
+    unitRetirementResults,
+    selectedPlanId,
+  ]);
 
   const generateId = () => Math.random().toString(36).substring(2, 11);
 
@@ -167,6 +233,19 @@ function AppContent() {
     setTransmissionCandidates(prev => prev.filter(c => !ids.includes(c.id)));
   };
 
+  // Solver control handlers
+  const handleStartSolver = () => {
+    setSolverStatus('running');
+  };
+
+  const handleStopSolver = () => {
+    setSolverStatus('ready');
+  };
+
+  const handlePauseSolver = () => {
+    setSolverStatus('paused');
+  };
+
   return (
     <View style={[styles.container, {paddingTop: safeAreaInsets.top}]}>
       <TopTabNavigator
@@ -192,6 +271,10 @@ function AppContent() {
         onCreateTransmissionCandidate={handleCreateTransmissionCandidate}
         onUpdateTransmissionCandidate={handleUpdateTransmissionCandidate}
         onDeleteTransmissionCandidates={handleDeleteTransmissionCandidates}
+        onStartSolver={handleStartSolver}
+        onStopSolver={handleStopSolver}
+        onPauseSolver={handlePauseSolver}
+        onSaveAll={handleSaveAll}
         onModalVisibleChange={setIsModalOpen}
       />
     </View>

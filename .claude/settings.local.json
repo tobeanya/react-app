@@ -29,7 +29,11 @@
       "Bash(del \"C:\\\\Users\\\\tobet\\\\Projects\\\\react-app\\\\create-icons.ps1\")",
       "Bash(npm ls:*)",
       "Bash(timeout /t 60 /nobreak)",
-      "Bash(node convert-csv.js:*)"
+      "Bash(node convert-csv.js:*)",
+      "Bash(dir:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\tobet\\\\Projects\\\\react-app\\\\windows\\\\ReactApp.Package\\\\AppPackages\\\\ReactApp.Package_1.0.0.0_x64_Test\\\\Install.ps1\" -Force)",
+      "Bash(explorer.exe \"shell:AppsFolder\\\\ReactApp_gre46ge5r5092!App\")",
+      "Bash(start \"\" \"shell:AppsFolder\\\\ReactApp_gre46ge5r5092!App\")"
     ]
   }
 }

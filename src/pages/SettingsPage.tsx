@@ -46,6 +46,7 @@ interface Props {
   expansionPlans: ExpansionPlan[];
   onSelectPlan: (id: string) => void;
   onUpdatePlan: (plan: ExpansionPlan) => void;
+  onSaveAll: () => void;
   onModalVisibleChange: (visible: boolean) => void;
 }
 
@@ -77,7 +78,7 @@ import {InputField} from '../components/common/InputField';
 import {Checkbox} from '../components/common/Checkbox';
 
 // Main Settings Page Component
-export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpdatePlan, onModalVisibleChange}: Props) {
+export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpdatePlan, onSaveAll, onModalVisibleChange}: Props) {
   const [activeDataTab, setActiveDataTab] = useState<'constraints' | 'escalation'>('constraints');
   const [dropdown, setDropdown] = useState<DropdownState>(initialDropdownState);
   const [scrollOffset, setScrollOffset] = useState(0);
@@ -493,7 +494,7 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
             <View style={styles.settingsColumn}>
               <Text style={styles.columnTitle}>General</Text>
               <InputField
-                label="UNIT NAME/ACCOUNT CENTER"
+                label="UNIT CATEGORY/MODIFIER SUFFIX"
                 value={settings.unitNameAccountCenter}
                 onChangeText={v => updateSettings('unitNameAccountCenter', v)}
                 placeholder="Enter suffix..."
@@ -564,6 +565,7 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
                 )}
               />
               
+              <Text style={{...styles.label, marginTop: 16}}>ITERATIONS</Text>
               <View style={styles.row}>
                 <View style={styles.col}>
                   <InputField
@@ -582,6 +584,7 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
                   />
                 </View>
               </View>
+
               <SelectField
                 label="WEATHER YEAR SELECTION"
                 value={settings.weatherYearSelection}
@@ -760,9 +763,14 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
         <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
           <Text style={styles.cancelButtonText}>Cancel</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.runButton} onPress={handleSave}>
-          <Text style={styles.runButtonText}>Run Simulation</Text>
-        </TouchableOpacity>
+        <View style={styles.footerRight}>
+          <TouchableOpacity style={styles.saveButton} onPress={onSaveAll}>
+            <Text style={styles.saveButtonText}>Save</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.runButton} onPress={handleSave}>
+            <Text style={styles.runButtonText}>Run Simulation</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Centralized Dropdown Modal - renders on top of everything */}
@@ -1160,6 +1168,10 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
+  footerRight: {
+    flexDirection: 'row',
+    gap: 12,
+  },
   cancelButton: {
     paddingVertical: 10,
     paddingHorizontal: 24,
@@ -1170,6 +1182,19 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     color: colors.textTertiary,
     fontSize: 14,
+  },
+  saveButton: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.5)',
+  },
+  saveButtonText: {
+    color: '#10b981',
+    fontSize: 14,
+    fontWeight: '600',
   },
   runButton: {
     backgroundColor: colors.primary,

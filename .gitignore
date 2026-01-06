@@ -76,3 +76,10 @@ yarn-error.log
 
 # Windows
 nul
+
+# Zipped Files
+*.zip
+*.tar.gz
+*.tar.bz2
+*.rar
+*.7z

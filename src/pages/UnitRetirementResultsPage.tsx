@@ -659,7 +659,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(16, 185, 129, 0.2)',
   },
   statIcon: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
   },
   statIconTextRed: {
@@ -672,7 +672,7 @@ const styles = StyleSheet.create({
     color: '#4ade80',
   },
   statLabel: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '600',
     letterSpacing: 1,
     marginBottom: 6,
@@ -692,7 +692,7 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   statSubtext: {
-    fontSize: 10,
+    fontSize: 12,
     color: colors.textQuaternary,
     marginTop: 2,
   },
@@ -718,7 +718,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   headerCellText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '600',
     color: '#fde047',
     letterSpacing: 0.5,
@@ -748,7 +748,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   cellTextSecondary: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.textQuaternary,
     marginTop: 2,
   },
@@ -773,7 +773,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   techBadgeText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '600',
     letterSpacing: 0.5,
     textTransform: 'uppercase',

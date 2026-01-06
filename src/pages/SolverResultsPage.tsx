@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   headerCellText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '600',
     color: colors.indicatorGreen,
     letterSpacing: 0.3,
@@ -432,15 +432,15 @@ const styles = StyleSheet.create({
   },
   cell: {
     paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingVertical: 8,
     justifyContent: 'center',
   },
   cellText: {
-    fontSize: 11,
+    fontSize: 13,
     color: colors.textTertiary,
   },
   cellTextMono: {
-    fontSize: 11,
+    fontSize: 13,
     color: colors.textTertiary,
     fontFamily: 'monospace',
   },
@@ -457,13 +457,13 @@ const styles = StyleSheet.create({
     color: colors.purple,
   },
   statusBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 4,
     alignSelf: 'flex-start',
   },
   statusBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '600',
   },
   statusSelected: {

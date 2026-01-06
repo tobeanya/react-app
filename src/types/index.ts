@@ -214,6 +214,23 @@ export interface UnitRetirementResult {
   region: Region;
 }
 
+// Run Case - represents a running/queued solver case
+export type RunCaseStatus = 'Running' | 'Paused' | 'Inactive' | 'Error' | 'Completed';
+
+export interface RunCase {
+  id: string;
+  expansionPlanId: string;
+  expansionPlanName: string;
+  study: string;
+  region: Region;
+  status: RunCaseStatus;
+  cycle: number;
+  caseRunning: number;
+  totalCapacityBuilt: string;
+  totalCapacityRetired: string;
+  horizon: string;
+}
+
 export const TECHNOLOGY_TYPES: TechnologyType[] = ['Combined Cycle', 'Solar PV', 'Wind', 'Battery', 'Gas Turbine', 'Nuclear'];
 
 export const REGIONS: Region[] = ['ERCOT', 'SPP', 'MISO', 'PJM'];

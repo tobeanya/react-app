@@ -635,7 +635,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   headerCellText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '600',
     letterSpacing: 0.3,
   },
@@ -678,18 +678,18 @@ const styles = StyleSheet.create({
   },
   cell: {
     paddingHorizontal: 8,
-    paddingVertical: 8,
+    paddingVertical: 10,
     justifyContent: 'center',
   },
   cellRight: {
     alignItems: 'flex-end',
   },
   cellText: {
-    fontSize: 12,
+    fontSize: 13,
     color: colors.textTertiary,
   },
   cellTextMono: {
-    fontSize: 12,
+    fontSize: 13,
     color: colors.textTertiary,
     fontFamily: 'monospace',
   },

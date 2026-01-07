@@ -14,6 +14,8 @@ import {colors} from '../styles/colors';
 interface Props {
   unitAdditionResults: UnitAdditionResult[];
   onModalVisibleChange: (visible: boolean) => void;
+  planningHorizonStart: number;
+  planningHorizonEnd: number;
 }
 
 type SortDirection = 'asc' | 'desc' | null;
@@ -23,11 +25,35 @@ interface SortConfig {
   direction: SortDirection;
 }
 
-export function UnitAdditionResultsPage({unitAdditionResults}: Props) {
+export function UnitAdditionResultsPage({
+  unitAdditionResults,
+  planningHorizonStart,
+  planningHorizonEnd,
+}: Props) {
   const [sortConfig, setSortConfig] = useState<SortConfig>({
     key: 'candidate',
     direction: 'asc',
   });
+
+  // Generate year columns based on planning horizon (max 5 years for display)
+  const years = useMemo(() => {
+    const result: number[] = [];
+    const maxYears = Math.min(5, planningHorizonEnd - planningHorizonStart + 1);
+    for (let i = 0; i < maxYears; i++) {
+      result.push(planningHorizonStart + i);
+    }
+    return result;
+  }, [planningHorizonStart, planningHorizonEnd]);
+
+  // Helper to get year value from result - maps display year to data property
+  const getYearValue = (item: UnitAdditionResult, year: number): number => {
+    const yearIndex = year - planningHorizonStart;
+    const yearKeys = ['year2026', 'year2027', 'year2028', 'year2029', 'year2030'] as const;
+    if (yearIndex >= 0 && yearIndex < yearKeys.length) {
+      return item[yearKeys[yearIndex]];
+    }
+    return 0;
+  };
 
   // Calculate summary statistics
   const summary = useMemo(() => {
@@ -82,11 +108,7 @@ export function UnitAdditionResultsPage({unitAdditionResults}: Props) {
         'Candidate',
         'Technology',
         'Total Capacity (MW)',
-        '2026',
-        '2027',
-        '2028',
-        '2029',
-        '2030',
+        ...years.map(y => String(y)),
         'CAPEX ($)',
         'Region',
       ].join('\t');
@@ -95,11 +117,7 @@ export function UnitAdditionResultsPage({unitAdditionResults}: Props) {
           item.candidate,
           item.technology,
           item.totalCapacity,
-          item.year2026,
-          item.year2027,
-          item.year2028,
-          item.year2029,
-          item.year2030,
+          ...years.map(y => getYearValue(item, y)),
           item.capex,
           item.region,
         ].join('\t'),
@@ -172,16 +190,14 @@ export function UnitAdditionResultsPage({unitAdditionResults}: Props) {
     }
   };
 
-  // Calculate year totals
+  // Calculate year totals dynamically
   const yearTotals = useMemo(() => {
-    return {
-      year2026: sortedData.reduce((sum, item) => sum + item.year2026, 0),
-      year2027: sortedData.reduce((sum, item) => sum + item.year2027, 0),
-      year2028: sortedData.reduce((sum, item) => sum + item.year2028, 0),
-      year2029: sortedData.reduce((sum, item) => sum + item.year2029, 0),
-      year2030: sortedData.reduce((sum, item) => sum + item.year2030, 0),
-    };
-  }, [sortedData]);
+    const totals: {[key: number]: number} = {};
+    years.forEach(year => {
+      totals[year] = sortedData.reduce((sum, item) => sum + getYearValue(item, year), 0);
+    });
+    return totals;
+  }, [sortedData, years]);
 
   return (
     <View style={styles.container}>
@@ -258,21 +274,11 @@ export function UnitAdditionResultsPage({unitAdditionResults}: Props) {
                   TOTAL CAPACITY (MW){getSortIndicator('totalCapacity')}
                 </Text>
               </TouchableOpacity>
-              <View style={[styles.headerCell, styles.headerCellRight, {width: 100}]}>
-                <Text style={styles.headerCellText}>2026</Text>
-              </View>
-              <View style={[styles.headerCell, styles.headerCellRight, {width: 100}]}>
-                <Text style={styles.headerCellText}>2027</Text>
-              </View>
-              <View style={[styles.headerCell, styles.headerCellRight, {width: 100}]}>
-                <Text style={styles.headerCellText}>2028</Text>
-              </View>
-              <View style={[styles.headerCell, styles.headerCellRight, {width: 100}]}>
-                <Text style={styles.headerCellText}>2029</Text>
-              </View>
-              <View style={[styles.headerCell, styles.headerCellRight, {width: 100}]}>
-                <Text style={styles.headerCellText}>2030</Text>
-              </View>
+              {years.map(year => (
+                <View key={year} style={[styles.headerCell, styles.headerCellRight, {width: 100}]}>
+                  <Text style={styles.headerCellText}>{year}</Text>
+                </View>
+              ))}
             </View>
 
             {/* Table Body */}
@@ -312,51 +318,20 @@ export function UnitAdditionResultsPage({unitAdditionResults}: Props) {
                       />
                     </View>
                   </View>
-                  <View style={[styles.cell, styles.cellRight, {width: 100}]}>
-                    <Text
-                      style={[
-                        styles.cellTextValue,
-                        item.year2026 > 0 ? styles.cellTextGreen : styles.cellTextMuted,
-                      ]}>
-                      {item.year2026 > 0 ? formatNumber(item.year2026) : '—'}
-                    </Text>
-                  </View>
-                  <View style={[styles.cell, styles.cellRight, {width: 100}]}>
-                    <Text
-                      style={[
-                        styles.cellTextValue,
-                        item.year2027 > 0 ? styles.cellTextGreen : styles.cellTextMuted,
-                      ]}>
-                      {item.year2027 > 0 ? formatNumber(item.year2027) : '—'}
-                    </Text>
-                  </View>
-                  <View style={[styles.cell, styles.cellRight, {width: 100}]}>
-                    <Text
-                      style={[
-                        styles.cellTextValue,
-                        item.year2028 > 0 ? styles.cellTextGreen : styles.cellTextMuted,
-                      ]}>
-                      {item.year2028 > 0 ? formatNumber(item.year2028) : '—'}
-                    </Text>
-                  </View>
-                  <View style={[styles.cell, styles.cellRight, {width: 100}]}>
-                    <Text
-                      style={[
-                        styles.cellTextValue,
-                        item.year2029 > 0 ? styles.cellTextGreen : styles.cellTextMuted,
-                      ]}>
-                      {item.year2029 > 0 ? formatNumber(item.year2029) : '—'}
-                    </Text>
-                  </View>
-                  <View style={[styles.cell, styles.cellRight, {width: 100}]}>
-                    <Text
-                      style={[
-                        styles.cellTextValue,
-                        item.year2030 > 0 ? styles.cellTextGreen : styles.cellTextMuted,
-                      ]}>
-                      {item.year2030 > 0 ? formatNumber(item.year2030) : '—'}
-                    </Text>
-                  </View>
+                  {years.map(year => {
+                    const value = getYearValue(item, year);
+                    return (
+                      <View key={year} style={[styles.cell, styles.cellRight, {width: 100}]}>
+                        <Text
+                          style={[
+                            styles.cellTextValue,
+                            value > 0 ? styles.cellTextGreen : styles.cellTextMuted,
+                          ]}>
+                          {value > 0 ? formatNumber(value) : '—'}
+                        </Text>
+                      </View>
+                    );
+                  })}
                 </View>
               ))}
 
@@ -372,55 +347,20 @@ export function UnitAdditionResultsPage({unitAdditionResults}: Props) {
                       {formatNumber(summary.totalCapacity)}
                     </Text>
                   </View>
-                  <View style={[styles.cell, styles.cellRight, {width: 100}]}>
-                    <Text style={[styles.footerText, styles.footerTextGreen]}>
-                      {formatNumber(yearTotals.year2026)}
-                    </Text>
-                  </View>
-                  <View style={[styles.cell, styles.cellRight, {width: 100}]}>
-                    <Text
-                      style={[
-                        styles.footerText,
-                        yearTotals.year2027 > 0
-                          ? styles.footerTextGreen
-                          : styles.footerTextMuted,
-                      ]}>
-                      {yearTotals.year2027 > 0 ? formatNumber(yearTotals.year2027) : '0'}
-                    </Text>
-                  </View>
-                  <View style={[styles.cell, styles.cellRight, {width: 100}]}>
-                    <Text
-                      style={[
-                        styles.footerText,
-                        yearTotals.year2028 > 0
-                          ? styles.footerTextGreen
-                          : styles.footerTextMuted,
-                      ]}>
-                      {yearTotals.year2028 > 0 ? formatNumber(yearTotals.year2028) : '0'}
-                    </Text>
-                  </View>
-                  <View style={[styles.cell, styles.cellRight, {width: 100}]}>
-                    <Text
-                      style={[
-                        styles.footerText,
-                        yearTotals.year2029 > 0
-                          ? styles.footerTextGreen
-                          : styles.footerTextMuted,
-                      ]}>
-                      {yearTotals.year2029 > 0 ? formatNumber(yearTotals.year2029) : '0'}
-                    </Text>
-                  </View>
-                  <View style={[styles.cell, styles.cellRight, {width: 100}]}>
-                    <Text
-                      style={[
-                        styles.footerText,
-                        yearTotals.year2030 > 0
-                          ? styles.footerTextGreen
-                          : styles.footerTextMuted,
-                      ]}>
-                      {yearTotals.year2030 > 0 ? formatNumber(yearTotals.year2030) : '0'}
-                    </Text>
-                  </View>
+                  {years.map(year => {
+                    const total = yearTotals[year] || 0;
+                    return (
+                      <View key={year} style={[styles.cell, styles.cellRight, {width: 100}]}>
+                        <Text
+                          style={[
+                            styles.footerText,
+                            total > 0 ? styles.footerTextGreen : styles.footerTextMuted,
+                          ]}>
+                          {total > 0 ? formatNumber(total) : '0'}
+                        </Text>
+                      </View>
+                    );
+                  })}
                 </View>
               )}
 
@@ -487,8 +427,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 8,
     backgroundColor: 'rgba(51, 65, 85, 0.8)',
-    borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.3)',
   },
   secondaryButtonText: {
     color: colors.textSecondary,
@@ -499,12 +437,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: 'rgba(51, 65, 85, 0.8)',
-    borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.3)',
+    backgroundColor: colors.primary,
   },
   primaryButtonText: {
-    color: colors.textSecondary,
+    color: colors.text,
     fontSize: 14,
     fontWeight: '500',
   },

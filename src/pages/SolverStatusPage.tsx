@@ -142,7 +142,7 @@ export function SolverStatusPage({
           <TouchableOpacity
             style={styles.secondaryButton}
             onPress={handleCopyToClipboard}>
-            <Text style={styles.secondaryButtonText}>Copy to Clipboard</Text>
+            <Text style={styles.secondaryButtonText}>Copy</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.primaryButton} onPress={handleExport}>
             <Text style={styles.primaryButtonText}>Export</Text>

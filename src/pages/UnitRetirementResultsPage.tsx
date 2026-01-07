@@ -14,6 +14,8 @@ import {colors} from '../styles/colors';
 interface Props {
   unitRetirementResults: UnitRetirementResult[];
   onModalVisibleChange: (visible: boolean) => void;
+  planningHorizonStart: number;
+  planningHorizonEnd: number;
 }
 
 type SortDirection = 'asc' | 'desc' | null;
@@ -23,7 +25,11 @@ interface SortConfig {
   direction: SortDirection;
 }
 
-export function UnitRetirementResultsPage({unitRetirementResults}: Props) {
+export function UnitRetirementResultsPage({
+  unitRetirementResults,
+  planningHorizonStart,
+  planningHorizonEnd,
+}: Props) {
   const [sortConfig, setSortConfig] = useState<SortConfig>({
     key: 'candidate',
     direction: 'asc',
@@ -31,16 +37,32 @@ export function UnitRetirementResultsPage({unitRetirementResults}: Props) {
 
   const hasData = unitRetirementResults.length > 0;
 
+  // Generate year columns based on planning horizon (max 5 years for display)
+  const years = useMemo(() => {
+    const result: number[] = [];
+    const maxYears = Math.min(5, planningHorizonEnd - planningHorizonStart + 1);
+    for (let i = 0; i < maxYears; i++) {
+      result.push(planningHorizonStart + i);
+    }
+    return result;
+  }, [planningHorizonStart, planningHorizonEnd]);
+
+  // Helper to get year value from result - maps display year to data property
+  const getYearValue = (item: UnitRetirementResult, year: number): number => {
+    const yearIndex = year - planningHorizonStart;
+    const yearKeys = ['year2026', 'year2027', 'year2028', 'year2029', 'year2030'] as const;
+    if (yearIndex >= 0 && yearIndex < yearKeys.length) {
+      return item[yearKeys[yearIndex]];
+    }
+    return 0;
+  };
+
   // Calculate summary statistics
   const summary = useMemo(() => {
     return {
       totalCandidates: unitRetirementResults.length,
       totalCapacity: unitRetirementResults.reduce(
         (sum, item) => sum + item.totalCapacity,
-        0,
-      ),
-      estimatedSavings: unitRetirementResults.reduce(
-        (sum, item) => sum + item.omCost,
         0,
       ),
     };
@@ -91,12 +113,7 @@ export function UnitRetirementResultsPage({unitRetirementResults}: Props) {
         'Candidate',
         'Technology',
         'Total Capacity (MW)',
-        '2026',
-        '2027',
-        '2028',
-        '2029',
-        '2030',
-        'O&M Savings ($)',
+        ...years.map(y => String(y)),
         'Region',
       ].join('\t');
       const rows = sortedData.map(item =>
@@ -104,12 +121,7 @@ export function UnitRetirementResultsPage({unitRetirementResults}: Props) {
           item.candidate,
           item.technology,
           item.totalCapacity,
-          item.year2026,
-          item.year2027,
-          item.year2028,
-          item.year2029,
-          item.year2030,
-          item.omCost,
+          ...years.map(y => getYearValue(item, y)),
           item.region,
         ].join('\t'),
       );
@@ -136,10 +148,6 @@ export function UnitRetirementResultsPage({unitRetirementResults}: Props) {
 
   const formatNumber = (num: number) => {
     return num.toLocaleString();
-  };
-
-  const formatCurrency = (num: number) => {
-    return '$' + num.toLocaleString();
   };
 
   const getSortIndicator = (columnKey: string) => {
@@ -175,16 +183,14 @@ export function UnitRetirementResultsPage({unitRetirementResults}: Props) {
     }
   };
 
-  // Calculate year totals
+  // Calculate year totals dynamically
   const yearTotals = useMemo(() => {
-    return {
-      year2026: sortedData.reduce((sum, item) => sum + item.year2026, 0),
-      year2027: sortedData.reduce((sum, item) => sum + item.year2027, 0),
-      year2028: sortedData.reduce((sum, item) => sum + item.year2028, 0),
-      year2029: sortedData.reduce((sum, item) => sum + item.year2029, 0),
-      year2030: sortedData.reduce((sum, item) => sum + item.year2030, 0),
-    };
-  }, [sortedData]);
+    const totals: {[key: number]: number} = {};
+    years.forEach(year => {
+      totals[year] = sortedData.reduce((sum, item) => sum + getYearValue(item, year), 0);
+    });
+    return totals;
+  }, [sortedData, years]);
 
   return (
     <View style={styles.container}>
@@ -263,15 +269,6 @@ export function UnitRetirementResultsPage({unitRetirementResults}: Props) {
           <Text style={styles.statValue}>{formatNumber(summary.totalCapacity)}</Text>
           <Text style={styles.statSubtext}>MW Removed</Text>
         </View>
-
-        <View style={[styles.statCard, !hasData && styles.statCardEmpty]}>
-          <View style={[styles.statIconContainer, styles.statIconGreen]}>
-            <Text style={[styles.statIcon, styles.statIconTextGreen]}>$</Text>
-          </View>
-          <Text style={[styles.statLabel, styles.statLabelGreen]}>SAVINGS</Text>
-          <Text style={styles.statValue}>{formatCurrency(summary.estimatedSavings)}</Text>
-          <Text style={styles.statSubtext}>Annual O&M</Text>
-        </View>
       </View>
 
       {/* Data Table or Empty State */}
@@ -302,33 +299,13 @@ export function UnitRetirementResultsPage({unitRetirementResults}: Props) {
                     TOTAL CAPACITY (MW){getSortIndicator('totalCapacity')}
                   </Text>
                 </TouchableOpacity>
-                <View
-                  style={[styles.headerCell, styles.headerCellRight, {width: 100}]}>
-                  <Text style={styles.headerCellText}>2026</Text>
-                </View>
-                <View
-                  style={[styles.headerCell, styles.headerCellRight, {width: 100}]}>
-                  <Text style={styles.headerCellText}>2027</Text>
-                </View>
-                <View
-                  style={[styles.headerCell, styles.headerCellRight, {width: 100}]}>
-                  <Text style={styles.headerCellText}>2028</Text>
-                </View>
-                <View
-                  style={[styles.headerCell, styles.headerCellRight, {width: 100}]}>
-                  <Text style={styles.headerCellText}>2029</Text>
-                </View>
-                <View
-                  style={[styles.headerCell, styles.headerCellRight, {width: 100}]}>
-                  <Text style={styles.headerCellText}>2030</Text>
-                </View>
-                <TouchableOpacity
-                  style={[styles.headerCell, styles.headerCellRight, {width: 130}]}
-                  onPress={() => handleSort('omCost')}>
-                  <Text style={styles.headerCellText}>
-                    O&M SAVINGS{getSortIndicator('omCost')}
-                  </Text>
-                </TouchableOpacity>
+                {years.map(year => (
+                  <View
+                    key={year}
+                    style={[styles.headerCell, styles.headerCellRight, {width: 100}]}>
+                    <Text style={styles.headerCellText}>{year}</Text>
+                  </View>
+                ))}
               </View>
 
               {/* Table Body */}
@@ -371,56 +348,20 @@ export function UnitRetirementResultsPage({unitRetirementResults}: Props) {
                         />
                       </View>
                     </View>
-                    <View style={[styles.cell, styles.cellRight, {width: 100}]}>
-                      <Text
-                        style={[
-                          styles.cellTextValue,
-                          item.year2026 > 0 ? styles.cellTextRed : styles.cellTextMuted,
-                        ]}>
-                        {item.year2026 > 0 ? formatNumber(item.year2026) : '—'}
-                      </Text>
-                    </View>
-                    <View style={[styles.cell, styles.cellRight, {width: 100}]}>
-                      <Text
-                        style={[
-                          styles.cellTextValue,
-                          item.year2027 > 0 ? styles.cellTextRed : styles.cellTextMuted,
-                        ]}>
-                        {item.year2027 > 0 ? formatNumber(item.year2027) : '—'}
-                      </Text>
-                    </View>
-                    <View style={[styles.cell, styles.cellRight, {width: 100}]}>
-                      <Text
-                        style={[
-                          styles.cellTextValue,
-                          item.year2028 > 0 ? styles.cellTextRed : styles.cellTextMuted,
-                        ]}>
-                        {item.year2028 > 0 ? formatNumber(item.year2028) : '—'}
-                      </Text>
-                    </View>
-                    <View style={[styles.cell, styles.cellRight, {width: 100}]}>
-                      <Text
-                        style={[
-                          styles.cellTextValue,
-                          item.year2029 > 0 ? styles.cellTextRed : styles.cellTextMuted,
-                        ]}>
-                        {item.year2029 > 0 ? formatNumber(item.year2029) : '—'}
-                      </Text>
-                    </View>
-                    <View style={[styles.cell, styles.cellRight, {width: 100}]}>
-                      <Text
-                        style={[
-                          styles.cellTextValue,
-                          item.year2030 > 0 ? styles.cellTextRed : styles.cellTextMuted,
-                        ]}>
-                        {item.year2030 > 0 ? formatNumber(item.year2030) : '—'}
-                      </Text>
-                    </View>
-                    <View style={[styles.cell, styles.cellRight, {width: 130}]}>
-                      <Text style={[styles.cellTextValue, styles.cellTextGreen]}>
-                        {formatCurrency(item.omCost)}
-                      </Text>
-                    </View>
+                    {years.map(year => {
+                      const value = getYearValue(item, year);
+                      return (
+                        <View key={year} style={[styles.cell, styles.cellRight, {width: 100}]}>
+                          <Text
+                            style={[
+                              styles.cellTextValue,
+                              value > 0 ? styles.cellTextRed : styles.cellTextMuted,
+                            ]}>
+                            {value > 0 ? formatNumber(value) : '—'}
+                          </Text>
+                        </View>
+                      );
+                    })}
                   </View>
                 ))}
 
@@ -435,66 +376,20 @@ export function UnitRetirementResultsPage({unitRetirementResults}: Props) {
                       {formatNumber(summary.totalCapacity)}
                     </Text>
                   </View>
-                  <View style={[styles.cell, styles.cellRight, {width: 100}]}>
-                    <Text
-                      style={[
-                        styles.footerText,
-                        yearTotals.year2026 > 0
-                          ? styles.footerTextRed
-                          : styles.footerTextMuted,
-                      ]}>
-                      {formatNumber(yearTotals.year2026)}
-                    </Text>
-                  </View>
-                  <View style={[styles.cell, styles.cellRight, {width: 100}]}>
-                    <Text
-                      style={[
-                        styles.footerText,
-                        yearTotals.year2027 > 0
-                          ? styles.footerTextRed
-                          : styles.footerTextMuted,
-                      ]}>
-                      {formatNumber(yearTotals.year2027)}
-                    </Text>
-                  </View>
-                  <View style={[styles.cell, styles.cellRight, {width: 100}]}>
-                    <Text
-                      style={[
-                        styles.footerText,
-                        yearTotals.year2028 > 0
-                          ? styles.footerTextRed
-                          : styles.footerTextMuted,
-                      ]}>
-                      {formatNumber(yearTotals.year2028)}
-                    </Text>
-                  </View>
-                  <View style={[styles.cell, styles.cellRight, {width: 100}]}>
-                    <Text
-                      style={[
-                        styles.footerText,
-                        yearTotals.year2029 > 0
-                          ? styles.footerTextRed
-                          : styles.footerTextMuted,
-                      ]}>
-                      {formatNumber(yearTotals.year2029)}
-                    </Text>
-                  </View>
-                  <View style={[styles.cell, styles.cellRight, {width: 100}]}>
-                    <Text
-                      style={[
-                        styles.footerText,
-                        yearTotals.year2030 > 0
-                          ? styles.footerTextRed
-                          : styles.footerTextMuted,
-                      ]}>
-                      {formatNumber(yearTotals.year2030)}
-                    </Text>
-                  </View>
-                  <View style={[styles.cell, styles.cellRight, {width: 130}]}>
-                    <Text style={[styles.footerText, styles.footerTextGreen]}>
-                      {formatCurrency(summary.estimatedSavings)}
-                    </Text>
-                  </View>
+                  {years.map(year => {
+                    const total = yearTotals[year] || 0;
+                    return (
+                      <View key={year} style={[styles.cell, styles.cellRight, {width: 100}]}>
+                        <Text
+                          style={[
+                            styles.footerText,
+                            total > 0 ? styles.footerTextRed : styles.footerTextMuted,
+                          ]}>
+                          {formatNumber(total)}
+                        </Text>
+                      </View>
+                    );
+                  })}
                 </View>
               </ScrollView>
             </View>
@@ -572,8 +467,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 8,
     backgroundColor: 'rgba(51, 65, 85, 0.8)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
   },
   secondaryButtonText: {
     color: colors.textSecondary,
@@ -584,12 +477,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: 'rgba(51, 65, 85, 0.8)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
+    backgroundColor: colors.primary,
   },
   primaryButtonText: {
-    color: colors.textSecondary,
+    color: colors.text,
     fontSize: 14,
     fontWeight: '500',
   },
@@ -655,9 +546,6 @@ const styles = StyleSheet.create({
   statIconOrange: {
     backgroundColor: 'rgba(249, 115, 22, 0.2)',
   },
-  statIconGreen: {
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
-  },
   statIcon: {
     fontSize: 12,
     fontWeight: '700',
@@ -667,9 +555,6 @@ const styles = StyleSheet.create({
   },
   statIconTextOrange: {
     color: '#fb923c',
-  },
-  statIconTextGreen: {
-    color: '#4ade80',
   },
   statLabel: {
     fontSize: 12,
@@ -682,9 +567,6 @@ const styles = StyleSheet.create({
   },
   statLabelOrange: {
     color: '#fdba74',
-  },
-  statLabelGreen: {
-    color: '#6ee7b7',
   },
   statValue: {
     fontSize: 24,
@@ -760,9 +642,6 @@ const styles = StyleSheet.create({
   cellTextRed: {
     color: '#f87171',
   },
-  cellTextGreen: {
-    color: '#4ade80',
-  },
   cellTextMuted: {
     color: colors.textQuaternary,
   },
@@ -835,9 +714,6 @@ const styles = StyleSheet.create({
   },
   footerTextRed: {
     color: '#f87171',
-  },
-  footerTextGreen: {
-    color: '#4ade80',
   },
   footerTextMuted: {
     color: colors.textQuaternary,

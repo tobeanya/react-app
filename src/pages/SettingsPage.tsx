@@ -450,9 +450,19 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
                     (id) => {
                       setSourceStudyId(id);
                       const study = SAMPLE_STUDIES.find(s => s.id === id);
+                      const newRegion = (study && study.regions.length === 1) ? study.regions[0] : region;
                       if (study && study.regions.length === 1) {
-                        setRegion(study.regions[0]);
+                        setRegion(newRegion);
                       }
+                      // Auto-save source study change
+                      onUpdatePlan({
+                        ...selectedPlan,
+                        sourceStudyId: id,
+                        planningHorizonStart: study?.startYear || selectedPlan.planningHorizonStart,
+                        planningHorizonEnd: study?.endYear || selectedPlan.planningHorizonEnd,
+                        region: newRegion,
+                        settings,
+                      });
                       closeDropdown();
                     },
                     (id) => SAMPLE_STUDIES.find(s => s.id === id)?.name || id,
@@ -472,6 +482,15 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
                     region,
                     (r) => {
                       setRegion(r as Region);
+                      // Auto-save region change
+                      onUpdatePlan({
+                        ...selectedPlan,
+                        sourceStudyId,
+                        planningHorizonStart: selectedStudy?.startYear || selectedPlan.planningHorizonStart,
+                        planningHorizonEnd: selectedStudy?.endYear || selectedPlan.planningHorizonEnd,
+                        region: r as Region,
+                        settings,
+                      });
                       closeDropdown();
                     },
                     undefined,

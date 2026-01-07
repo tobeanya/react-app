@@ -156,7 +156,7 @@ export interface SolverResult {
 }
 
 // Solver Status
-export type SolverStatusType = 'ready' | 'running' | 'paused' | 'completed' | 'error';
+export type SolverStatusType = 'inactive' | 'running' | 'paused' | 'finished' | 'error';
 
 // NPV Result Row
 export interface NPVResult {
@@ -215,7 +215,7 @@ export interface UnitRetirementResult {
 }
 
 // Run Case - represents a running/queued solver case
-export type RunCaseStatus = 'Running' | 'Paused' | 'Inactive' | 'Error' | 'Completed';
+export type RunCaseStatus = 'Running' | 'Paused' | 'Inactive' | 'Error' | 'Finished';
 
 export interface RunCase {
   id: string;

@@ -232,7 +232,9 @@ export function NPVResultsPage({npvResults}: Props) {
           <View>
             <Text style={styles.headerTitle}>NPV Results Analysis</Text>
             <Text style={styles.headerSubtitle}>
-              Net Present Value calculations across all expansion scenarios
+              {sortedData.length === 0
+                ? 'No results available'
+                : `Showing ${startIndex + 1}-${Math.min(endIndex, sortedData.length)} of ${sortedData.length} results`}
             </Text>
           </View>
         </View>
@@ -244,70 +246,6 @@ export function NPVResultsPage({npvResults}: Props) {
           </TouchableOpacity>
           <TouchableOpacity style={styles.primaryButton} onPress={handleExport}>
             <Text style={styles.primaryButtonText}>Export</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Pagination Info Bar */}
-      <View style={styles.paginationInfoBar}>
-        <View style={styles.paginationInfoLeft}>
-          <Text style={styles.paginationInfoText}>
-            Showing{' '}
-            <Text style={styles.paginationInfoHighlight}>{startIndex + 1}</Text> to{' '}
-            <Text style={styles.paginationInfoHighlight}>
-              {Math.min(endIndex, sortedData.length)}
-            </Text>{' '}
-            of <Text style={styles.paginationInfoHighlight}>{sortedData.length}</Text>{' '}
-            results
-          </Text>
-          <View style={styles.rowsPerPageContainer}>
-            <Text style={styles.rowsPerPageLabel}>Rows per page:</Text>
-            <View style={styles.rowsPerPageSelect}>
-              {rowsPerPageOptions.map(option => (
-                <TouchableOpacity
-                  key={option}
-                  style={[
-                    styles.rowsPerPageOption,
-                    rowsPerPage === option && styles.rowsPerPageOptionActive,
-                  ]}
-                  onPress={() => {
-                    setRowsPerPage(option);
-                    setCurrentPage(1);
-                  }}>
-                  <Text
-                    style={[
-                      styles.rowsPerPageOptionText,
-                      rowsPerPage === option && styles.rowsPerPageOptionTextActive,
-                    ]}>
-                    {option}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </View>
-        <View style={styles.paginationControls}>
-          <TouchableOpacity
-            style={[
-              styles.paginationArrow,
-              currentPage === 1 && styles.paginationArrowDisabled,
-            ]}
-            onPress={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-            disabled={currentPage === 1}>
-            <Text style={styles.paginationArrowText}>{'<'}</Text>
-          </TouchableOpacity>
-          <Text style={styles.pageIndicator}>
-            Page <Text style={styles.pageIndicatorHighlight}>{currentPage}</Text> of{' '}
-            <Text style={styles.pageIndicatorHighlight}>{totalPages || 1}</Text>
-          </Text>
-          <TouchableOpacity
-            style={[
-              styles.paginationArrow,
-              currentPage === totalPages && styles.paginationArrowDisabled,
-            ]}
-            onPress={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-            disabled={currentPage === totalPages || totalPages === 0}>
-            <Text style={styles.paginationArrowText}>{'>'}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -378,11 +316,38 @@ export function NPVResultsPage({npvResults}: Props) {
         </ScrollView>
       </View>
 
-      {/* Bottom Pagination */}
-      <View style={styles.bottomPagination}>
-        <Text style={styles.paginationText}>
-          Page {currentPage} of {totalPages || 1}
-        </Text>
+      {/* Pagination */}
+      <View style={styles.paginationContainer}>
+        <View style={styles.paginationLeft}>
+          <Text style={styles.paginationText}>
+            Page {totalPages === 0 ? 0 : currentPage} of {totalPages}
+          </Text>
+          <View style={styles.rowsPerPageContainer}>
+            <Text style={styles.rowsPerPageLabel}>Rows per page:</Text>
+            <View style={styles.rowsPerPageSelect}>
+              {rowsPerPageOptions.map(option => (
+                <TouchableOpacity
+                  key={option}
+                  style={[
+                    styles.rowsPerPageOption,
+                    rowsPerPage === option && styles.rowsPerPageOptionActive,
+                  ]}
+                  onPress={() => {
+                    setRowsPerPage(option);
+                    setCurrentPage(1);
+                  }}>
+                  <Text
+                    style={[
+                      styles.rowsPerPageOptionText,
+                      rowsPerPage === option && styles.rowsPerPageOptionTextActive,
+                    ]}>
+                    {option}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
         <View style={styles.paginationButtons}>
           <TouchableOpacity
             style={[
@@ -417,7 +382,7 @@ export function NPVResultsPage({npvResults}: Props) {
           <TouchableOpacity
             style={[
               styles.paginationButton,
-              currentPage === totalPages && styles.paginationButtonDisabled,
+              (currentPage === totalPages || totalPages === 0) && styles.paginationButtonDisabled,
             ]}
             onPress={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
             disabled={currentPage === totalPages || totalPages === 0}>
@@ -433,7 +398,7 @@ export function NPVResultsPage({npvResults}: Props) {
           <TouchableOpacity
             style={[
               styles.paginationButton,
-              currentPage === totalPages && styles.paginationButtonDisabled,
+              (currentPage === totalPages || totalPages === 0) && styles.paginationButtonDisabled,
             ]}
             onPress={() => setCurrentPage(totalPages)}
             disabled={currentPage === totalPages || totalPages === 0}>
@@ -446,17 +411,6 @@ export function NPVResultsPage({npvResults}: Props) {
               Last
             </Text>
           </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Info Notice */}
-      <View style={styles.infoNotice}>
-        <View style={styles.infoNoticeBorder} />
-        <View style={styles.infoNoticeContent}>
-          <Text style={styles.infoNoticeTitle}>NPV Analysis Complete</Text>
-          <Text style={styles.infoNoticeText}>
-            Click column headers to sort. Drag column edges to resize.
-          </Text>
         </View>
       </View>
     </View>
@@ -522,91 +476,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 14,
     fontWeight: '500',
-  },
-  paginationInfoBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'rgba(30, 41, 59, 0.6)',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(51, 65, 85, 0.5)',
-  },
-  paginationInfoLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 24,
-  },
-  paginationInfoText: {
-    fontSize: 13,
-    color: colors.textTertiary,
-  },
-  paginationInfoHighlight: {
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
-  rowsPerPageContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  rowsPerPageLabel: {
-    fontSize: 13,
-    color: colors.textTertiary,
-  },
-  rowsPerPageSelect: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  rowsPerPageOption: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 4,
-    backgroundColor: 'rgba(51, 65, 85, 0.6)',
-  },
-  rowsPerPageOptionActive: {
-    backgroundColor: colors.primary,
-  },
-  rowsPerPageOptionText: {
-    fontSize: 12,
-    color: colors.textTertiary,
-  },
-  rowsPerPageOptionTextActive: {
-    color: colors.text,
-    fontWeight: '600',
-  },
-  paginationControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  paginationArrow: {
-    width: 32,
-    height: 32,
-    borderRadius: 6,
-    backgroundColor: 'rgba(51, 65, 85, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  paginationArrowDisabled: {
-    opacity: 0.4,
-  },
-  paginationArrowText: {
-    color: colors.textSecondary,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  pageIndicator: {
-    fontSize: 13,
-    color: colors.textTertiary,
-    paddingHorizontal: 12,
-  },
-  pageIndicatorHighlight: {
-    fontWeight: '600',
-    color: colors.textSecondary,
   },
   tableContainer: {
     flex: 1,
@@ -726,7 +595,7 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     fontSize: 14,
   },
-  bottomPagination: {
+  paginationContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -735,9 +604,44 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     marginTop: 12,
   },
+  paginationLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 24,
+  },
   paginationText: {
     fontSize: 12,
     color: colors.textTertiary,
+  },
+  rowsPerPageContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  rowsPerPageLabel: {
+    fontSize: 12,
+    color: colors.textTertiary,
+  },
+  rowsPerPageSelect: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  rowsPerPageOption: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 4,
+    backgroundColor: 'rgba(51, 65, 85, 0.6)',
+  },
+  rowsPerPageOptionActive: {
+    backgroundColor: colors.primary,
+  },
+  rowsPerPageOptionText: {
+    fontSize: 12,
+    color: colors.textTertiary,
+  },
+  rowsPerPageOptionTextActive: {
+    color: colors.text,
+    fontWeight: '600',
   },
   paginationButtons: {
     flexDirection: 'row',
@@ -759,32 +663,5 @@ const styles = StyleSheet.create({
   },
   paginationButtonTextDisabled: {
     color: colors.textQuaternary,
-  },
-  infoNotice: {
-    flexDirection: 'row',
-    marginTop: 12,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.2)',
-    overflow: 'hidden',
-  },
-  infoNoticeBorder: {
-    width: 4,
-    backgroundColor: colors.primary,
-  },
-  infoNoticeContent: {
-    flex: 1,
-    padding: 16,
-  },
-  infoNoticeTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#93c5fd',
-    marginBottom: 4,
-  },
-  infoNoticeText: {
-    fontSize: 13,
-    color: colors.textTertiary,
   },
 });

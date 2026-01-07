@@ -11,46 +11,159 @@ import {ExpansionPlan, RunCase, SolverStatusType, SAMPLE_STUDIES} from '../types
 interface Props {
   expansionPlans: ExpansionPlan[];
   selectedPlanId: string | null;
+  solverStatuses: Record<string, SolverStatusType>;
   onSelectPlan: (id: string) => void;
-  onStartSolver: () => void;
-  onStopSolver: () => void;
-  onPauseSolver: () => void;
-  solverStatus: SolverStatusType;
+  onStartSolver: (planId: string) => void;
+  onStopSolver: (planId: string) => void;
+  onPauseSolver: (planId: string) => void;
   onModalVisibleChange: (visible: boolean) => void;
 }
+
+type SortDirection = 'asc' | 'desc' | null;
+
+interface SortConfig {
+  key: keyof RunCase | null;
+  direction: SortDirection;
+}
+
+// Column definitions
+const COLUMNS: {key: keyof RunCase; label: string; width: number}[] = [
+  {key: 'expansionPlanName', label: 'EXPANSION PLAN', width: 180},
+  {key: 'study', label: 'STUDY', width: 280},
+  {key: 'region', label: 'REGION', width: 80},
+  {key: 'status', label: 'STATUS', width: 100},
+  {key: 'cycle', label: 'CYCLE', width: 70},
+  {key: 'caseRunning', label: 'CASE RUNNING', width: 110},
+  {key: 'totalCapacityBuilt', label: 'CAPACITY BUILT', width: 130},
+  {key: 'totalCapacityRetired', label: 'CAPACITY RETIRED', width: 130},
+  {key: 'horizon', label: 'HORIZON', width: 100},
+];
 
 export function RunPage({
   expansionPlans,
   selectedPlanId,
+  solverStatuses,
   onSelectPlan,
   onStartSolver,
   onStopSolver,
   onPauseSolver,
-  solverStatus,
 }: Props) {
   const [showPlanDropdown, setShowPlanDropdown] = useState(false);
+  const [sortConfig, setSortConfig] = useState<SortConfig>({key: null, direction: null});
+  const [colWidths, setColWidths] = useState<{[key: string]: number}>(
+    COLUMNS.reduce((acc, col) => ({...acc, [col.key]: col.width}), {}),
+  );
+  const [resizing, setResizing] = useState<{
+    column: string;
+    startX: number;
+    startWidth: number;
+  } | null>(null);
 
   const selectedPlan = expansionPlans.find(p => p.id === selectedPlanId);
+
+  // Helper to get status for a plan - now looks up from per-plan statuses
+  const getPlanStatus = (planId: string): 'Running' | 'Paused' | 'Inactive' | 'Error' | 'Finished' => {
+    const status = solverStatuses[planId] || 'inactive';
+    switch (status) {
+      case 'running':
+        return 'Running';
+      case 'paused':
+        return 'Paused';
+      case 'finished':
+        return 'Finished';
+      case 'error':
+        return 'Error';
+      default:
+        return 'Inactive';
+    }
+  };
 
   // Generate run cases from actual expansion plans
   const runCases: RunCase[] = useMemo(() => {
     return expansionPlans.map(plan => {
       const study = SAMPLE_STUDIES.find(s => s.id === plan.sourceStudyId);
+      const status = getPlanStatus(plan.id);
       return {
         id: plan.id,
         expansionPlanId: plan.id,
         expansionPlanName: plan.name,
         study: study?.name || '-',
         region: plan.region,
-        status: plan.isActive ? 'Running' : 'Inactive' as const,
-        cycle: 0,
-        caseRunning: plan.isActive ? 1 : 0,
+        status,
+        cycle: status === 'Running' ? 1 : 0,
+        caseRunning: status === 'Running' ? 1 : 0,
         totalCapacityBuilt: '0 MW',
         totalCapacityRetired: '0 MW',
         horizon: `${plan.planningHorizonStart}-${plan.planningHorizonEnd}`,
       };
     });
-  }, [expansionPlans]);
+  }, [expansionPlans, solverStatuses]);
+
+  // Sorting logic
+  const handleSort = (columnKey: keyof RunCase) => {
+    setSortConfig(prev => {
+      if (prev.key !== columnKey) {
+        return {key: columnKey, direction: 'asc'};
+      }
+      if (prev.direction === 'asc') {
+        return {key: columnKey, direction: 'desc'};
+      }
+      return {key: null, direction: null};
+    });
+  };
+
+  const getSortIndicator = (columnKey: keyof RunCase) => {
+    if (sortConfig.key !== columnKey) return '';
+    return sortConfig.direction === 'asc' ? ' ↑' : ' ↓';
+  };
+
+  const sortedRunCases = useMemo(() => {
+    if (!sortConfig.key || !sortConfig.direction) {
+      return runCases;
+    }
+    return [...runCases].sort((a, b) => {
+      const aVal = a[sortConfig.key!];
+      const bVal = b[sortConfig.key!];
+      if (aVal === bVal) return 0;
+      let comparison: number;
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        comparison = aVal - bVal;
+      } else {
+        comparison = String(aVal).localeCompare(String(bVal));
+      }
+      return sortConfig.direction === 'asc' ? comparison : -comparison;
+    });
+  }, [runCases, sortConfig]);
+
+  // Column resize handlers
+  const handleResizeStart = (column: string, startX: number) => {
+    setResizing({column, startX, startWidth: colWidths[column]});
+  };
+
+  const handleResizeMove = (currentX: number) => {
+    if (!resizing) return;
+    const diff = currentX - resizing.startX;
+    const newWidth = Math.max(60, resizing.startWidth + diff);
+    setColWidths(prev => ({...prev, [resizing.column]: newWidth}));
+  };
+
+  const handleResizeEnd = () => {
+    setResizing(null);
+  };
+
+  const renderResizeHandle = (column: string) => (
+    <View
+      // @ts-ignore - cursor is supported on Windows
+      style={[styles.resizeHandle, {cursor: 'col-resize'}]}
+      onStartShouldSetResponder={() => true}
+      onMoveShouldSetResponder={() => true}
+      onResponderTerminationRequest={() => false}
+      onResponderGrant={e => handleResizeStart(column, e.nativeEvent.pageX)}
+      onResponderMove={e => handleResizeMove(e.nativeEvent.pageX)}
+      onResponderRelease={handleResizeEnd}
+      onResponderTerminate={handleResizeEnd}
+    />
+  );
 
   const casesRunning = runCases.filter(c => c.status === 'Running').length;
 
@@ -60,6 +173,8 @@ export function RunPage({
         return styles.statusRunning;
       case 'Paused':
         return styles.statusPaused;
+      case 'Finished':
+        return styles.statusFinished;
       case 'Inactive':
         return styles.statusInactive;
       case 'Error':
@@ -75,6 +190,8 @@ export function RunPage({
         return styles.statusTextRunning;
       case 'Paused':
         return styles.statusTextPaused;
+      case 'Finished':
+        return styles.statusTextFinished;
       case 'Inactive':
         return styles.statusTextInactive;
       case 'Error':
@@ -84,23 +201,36 @@ export function RunPage({
     }
   };
 
+  // Get the status for the currently selected plan
+  const selectedPlanSolverStatus = selectedPlanId
+    ? (solverStatuses[selectedPlanId] || 'inactive')
+    : 'inactive';
+
   const getSolverStatusText = () => {
-    switch (solverStatus) {
+    switch (selectedPlanSolverStatus) {
       case 'running':
         return 'Running';
       case 'paused':
         return 'Paused';
+      case 'finished':
+        return 'Finished';
+      case 'error':
+        return 'Error';
       default:
-        return 'Ready';
+        return 'Inactive';
     }
   };
 
   const getSolverStatusColor = () => {
-    switch (solverStatus) {
+    switch (selectedPlanSolverStatus) {
       case 'running':
         return '#10b981';
       case 'paused':
         return '#f59e0b';
+      case 'finished':
+        return '#60a5fa';
+      case 'error':
+        return '#ef4444';
       default:
         return '#94a3b8';
     }
@@ -161,8 +291,10 @@ export function RunPage({
               <View style={styles.configItem}>
                 <Text style={styles.configLabel}>STUDY</Text>
                 <View style={styles.readOnlyField}>
-                  <Text style={styles.readOnlyText}>
-                    {selectedPlan?.sourceStudyId || '-'}
+                  <Text style={styles.readOnlyText} numberOfLines={1}>
+                    {selectedPlan?.sourceStudyId
+                      ? SAMPLE_STUDIES.find(s => s.id === selectedPlan.sourceStudyId)?.name || '-'
+                      : '-'}
                   </Text>
                 </View>
               </View>
@@ -174,7 +306,7 @@ export function RunPage({
                   <View
                     style={[
                       styles.statusDot,
-                      solverStatus === 'running' && styles.statusDotActive,
+                      casesRunning > 0 && styles.statusDotActive,
                     ]}
                   />
                   <Text style={styles.casesRunningNumber}>{casesRunning}</Text>
@@ -188,10 +320,10 @@ export function RunPage({
                 style={[
                   styles.button,
                   styles.buttonStart,
-                  solverStatus === 'running' && styles.buttonDisabled,
+                  (!selectedPlanId || selectedPlanSolverStatus === 'running') && styles.buttonDisabled,
                 ]}
-                onPress={onStartSolver}
-                disabled={solverStatus === 'running'}>
+                onPress={() => selectedPlanId && onStartSolver(selectedPlanId)}
+                disabled={!selectedPlanId || selectedPlanSolverStatus === 'running'}>
                 <Text style={styles.buttonStartText}>▶ Start</Text>
               </TouchableOpacity>
 
@@ -199,10 +331,10 @@ export function RunPage({
                 style={[
                   styles.button,
                   styles.buttonStop,
-                  solverStatus === 'ready' && styles.buttonDisabled,
+                  (!selectedPlanId || selectedPlanSolverStatus === 'inactive') && styles.buttonDisabled,
                 ]}
-                onPress={onStopSolver}
-                disabled={solverStatus === 'ready'}>
+                onPress={() => selectedPlanId && onStopSolver(selectedPlanId)}
+                disabled={!selectedPlanId || selectedPlanSolverStatus === 'inactive'}>
                 <Text style={styles.buttonStopText}>■ Stop</Text>
               </TouchableOpacity>
 
@@ -210,10 +342,10 @@ export function RunPage({
                 style={[
                   styles.button,
                   styles.buttonPause,
-                  solverStatus !== 'running' && styles.buttonDisabled,
+                  (!selectedPlanId || selectedPlanSolverStatus !== 'running') && styles.buttonDisabled,
                 ]}
-                onPress={onPauseSolver}
-                disabled={solverStatus !== 'running'}>
+                onPress={() => selectedPlanId && onPauseSolver(selectedPlanId)}
+                disabled={!selectedPlanId || selectedPlanSolverStatus !== 'running'}>
                 <Text style={styles.buttonPauseText}>❚❚ Pause</Text>
               </TouchableOpacity>
 
@@ -282,27 +414,21 @@ export function RunPage({
             <View>
               {/* Table Header */}
               <View style={styles.tableHeader}>
-                <Text style={[styles.headerCell, styles.cellPlan]}>
-                  EXPANSION PLAN
-                </Text>
-                <Text style={[styles.headerCell, styles.cellStudy]}>STUDY</Text>
-                <Text style={[styles.headerCell, styles.cellRegion]}>REGION</Text>
-                <Text style={[styles.headerCell, styles.cellStatus]}>STATUS</Text>
-                <Text style={[styles.headerCell, styles.cellCycle]}>CYCLE</Text>
-                <Text style={[styles.headerCell, styles.cellCase]}>
-                  CASE RUNNING
-                </Text>
-                <Text style={[styles.headerCell, styles.cellCapacity]}>
-                  CAPACITY BUILT
-                </Text>
-                <Text style={[styles.headerCell, styles.cellCapacity]}>
-                  CAPACITY RETIRED
-                </Text>
-                <Text style={[styles.headerCell, styles.cellHorizon]}>HORIZON</Text>
+                {COLUMNS.map(col => (
+                  <TouchableOpacity
+                    key={col.key}
+                    style={[styles.headerCell, {width: colWidths[col.key]}]}
+                    onPress={() => handleSort(col.key)}>
+                    <Text style={styles.headerCellText} numberOfLines={1}>
+                      {col.label}{getSortIndicator(col.key)}
+                    </Text>
+                    {renderResizeHandle(col.key)}
+                  </TouchableOpacity>
+                ))}
               </View>
 
               {/* Table Body */}
-              {runCases.length === 0 ? (
+              {sortedRunCases.length === 0 ? (
                 <View style={styles.emptyState}>
                   <Text style={styles.emptyStateText}>
                     No cases configured. Create an expansion plan and add candidates
@@ -310,23 +436,27 @@ export function RunPage({
                   </Text>
                 </View>
               ) : (
-                runCases.map((caseItem, idx) => (
+                sortedRunCases.map((caseItem, idx) => (
                   <View
                     key={caseItem.id}
                     style={[
                       styles.tableRow,
                       idx % 2 === 0 && styles.tableRowAlt,
                     ]}>
-                    <Text style={[styles.cell, styles.cellPlan, styles.cellTextBold]}>
-                      {caseItem.expansionPlanName}
-                    </Text>
-                    <Text style={[styles.cell, styles.cellStudy]}>
-                      {caseItem.study}
-                    </Text>
-                    <Text style={[styles.cell, styles.cellRegion]}>
-                      {caseItem.region}
-                    </Text>
-                    <View style={[styles.cell, styles.cellStatus]}>
+                    <View style={[styles.cell, {width: colWidths.expansionPlanName}]}>
+                      <Text style={styles.cellTextBold} numberOfLines={1}>
+                        {caseItem.expansionPlanName}
+                      </Text>
+                    </View>
+                    <View style={[styles.cell, {width: colWidths.study}]}>
+                      <Text style={styles.cellText} numberOfLines={1}>
+                        {caseItem.study}
+                      </Text>
+                    </View>
+                    <View style={[styles.cell, {width: colWidths.region}]}>
+                      <Text style={styles.cellText}>{caseItem.region}</Text>
+                    </View>
+                    <View style={[styles.cell, {width: colWidths.status}]}>
                       <View style={[styles.statusBadge, getStatusStyle(caseItem.status)]}>
                         <Text
                           style={[
@@ -337,31 +467,25 @@ export function RunPage({
                         </Text>
                       </View>
                     </View>
-                    <Text style={[styles.cell, styles.cellCycle, styles.cellCycleValue]}>
-                      {caseItem.cycle}
-                    </Text>
-                    <Text style={[styles.cell, styles.cellCase]}>
-                      {caseItem.caseRunning}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.cell,
-                        styles.cellCapacity,
-                        styles.cellCapacityBuilt,
-                      ]}>
-                      {caseItem.totalCapacityBuilt}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.cell,
-                        styles.cellCapacity,
-                        styles.cellCapacityRetired,
-                      ]}>
-                      {caseItem.totalCapacityRetired}
-                    </Text>
-                    <Text style={[styles.cell, styles.cellHorizon]}>
-                      {caseItem.horizon}
-                    </Text>
+                    <View style={[styles.cell, styles.cellRight, {width: colWidths.cycle}]}>
+                      <Text style={styles.cellCycleValue}>{caseItem.cycle}</Text>
+                    </View>
+                    <View style={[styles.cell, styles.cellRight, {width: colWidths.caseRunning}]}>
+                      <Text style={styles.cellText}>{caseItem.caseRunning}</Text>
+                    </View>
+                    <View style={[styles.cell, styles.cellRight, {width: colWidths.totalCapacityBuilt}]}>
+                      <Text style={styles.cellCapacityBuilt}>
+                        {caseItem.totalCapacityBuilt}
+                      </Text>
+                    </View>
+                    <View style={[styles.cell, styles.cellRight, {width: colWidths.totalCapacityRetired}]}>
+                      <Text style={styles.cellCapacityRetired}>
+                        {caseItem.totalCapacityRetired}
+                      </Text>
+                    </View>
+                    <View style={[styles.cell, {width: colWidths.horizon}]}>
+                      <Text style={styles.cellText}>{caseItem.horizon}</Text>
+                    </View>
                   </View>
                 ))
               )}
@@ -655,10 +779,25 @@ const styles = StyleSheet.create({
   headerCell: {
     paddingHorizontal: 16,
     paddingVertical: 16,
+    position: 'relative',
+    overflow: 'visible',
+  },
+  headerCellText: {
     fontSize: 11,
     fontWeight: '600',
     color: '#fde047',
     letterSpacing: 0.5,
+  },
+  resizeHandle: {
+    position: 'absolute',
+    right: -5,
+    top: 0,
+    bottom: 0,
+    width: 12,
+    backgroundColor: 'transparent',
+    zIndex: 10,
+    borderRightWidth: 2,
+    borderRightColor: 'rgba(59, 130, 246, 0.3)',
   },
   tableRow: {
     flexDirection: 'row',
@@ -671,51 +810,34 @@ const styles = StyleSheet.create({
   cell: {
     paddingHorizontal: 16,
     paddingVertical: 16,
+    justifyContent: 'center',
+  },
+  cellRight: {
+    alignItems: 'flex-end',
+  },
+  cellText: {
     fontSize: 13,
     color: '#94a3b8',
   },
   cellTextBold: {
+    fontSize: 13,
     fontWeight: '500',
     color: '#cbd5e1',
   },
-  cellPlan: {
-    width: 180,
-  },
-  cellStudy: {
-    width: 140,
-  },
-  cellRegion: {
-    width: 80,
-  },
-  cellStatus: {
-    width: 100,
-    justifyContent: 'center',
-  },
-  cellCycle: {
-    width: 70,
-    textAlign: 'right',
-  },
   cellCycleValue: {
+    fontSize: 13,
     fontWeight: '500',
     color: '#60a5fa',
   },
-  cellCase: {
-    width: 110,
-    textAlign: 'right',
-  },
-  cellCapacity: {
-    width: 130,
-    textAlign: 'right',
-    fontWeight: '500',
-  },
   cellCapacityBuilt: {
+    fontSize: 13,
+    fontWeight: '500',
     color: '#10b981',
   },
   cellCapacityRetired: {
+    fontSize: 13,
+    fontWeight: '500',
     color: '#ef4444',
-  },
-  cellHorizon: {
-    width: 100,
   },
   statusBadge: {
     paddingHorizontal: 10,
@@ -757,6 +879,13 @@ const styles = StyleSheet.create({
   },
   statusTextError: {
     color: '#ef4444',
+  },
+  statusFinished: {
+    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    borderColor: 'rgba(59, 130, 246, 0.3)',
+  },
+  statusTextFinished: {
+    color: '#60a5fa',
   },
   emptyState: {
     padding: 48,

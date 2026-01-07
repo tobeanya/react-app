@@ -55,7 +55,7 @@ function AppContent() {
   const [npvResults, setNpvResults] = useState<NPVResult[]>([]);
   const [unitAdditionResults, setUnitAdditionResults] = useState<UnitAdditionResult[]>([]);
   const [unitRetirementResults, setUnitRetirementResults] = useState<UnitRetirementResult[]>([]);
-  const [solverStatus, setSolverStatus] = useState<SolverStatusType>('ready');
+  const [solverStatuses, setSolverStatuses] = useState<Record<string, SolverStatusType>>({});
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -233,17 +233,17 @@ function AppContent() {
     setTransmissionCandidates(prev => prev.filter(c => !ids.includes(c.id)));
   };
 
-  // Solver control handlers
-  const handleStartSolver = () => {
-    setSolverStatus('running');
+  // Solver control handlers - now per-plan
+  const handleStartSolver = (planId: string) => {
+    setSolverStatuses(prev => ({...prev, [planId]: 'running'}));
   };
 
-  const handleStopSolver = () => {
-    setSolverStatus('ready');
+  const handleStopSolver = (planId: string) => {
+    setSolverStatuses(prev => ({...prev, [planId]: 'inactive'}));
   };
 
-  const handlePauseSolver = () => {
-    setSolverStatus('paused');
+  const handlePauseSolver = (planId: string) => {
+    setSolverStatuses(prev => ({...prev, [planId]: 'paused'}));
   };
 
   return (
@@ -257,7 +257,7 @@ function AppContent() {
         npvResults={npvResults}
         unitAdditionResults={unitAdditionResults}
         unitRetirementResults={unitRetirementResults}
-        solverStatus={solverStatus}
+        solverStatuses={solverStatuses}
         selectedPlanId={selectedPlanId}
         isModalOpen={isModalOpen}
         onSelectPlan={setSelectedPlanId}

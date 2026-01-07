@@ -47,7 +47,7 @@ export function SolverResultsPage({
 }: Props) {
   const [containerWidth, setContainerWidth] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(20);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
   const [colWidths, setColWidths] = useState<{[key: string]: number}>(
     COLUMNS.reduce((acc, col) => ({...acc, [col.key]: col.width}), {}),
   );
@@ -114,6 +114,8 @@ export function SolverResultsPage({
 
   const tableWidth = Object.values(colWidths).reduce((sum, w) => sum + w, 0) + 48;
 
+  const rowsPerPageOptions = [10, 25, 50, 100];
+
   const renderResizeHandle = (column: string) => (
     <View
       style={styles.resizeHandle}
@@ -170,8 +172,9 @@ export function SolverResultsPage({
           <View>
             <Text style={styles.headerTitle}>Solver Results Analysis</Text>
             <Text style={styles.headerSubtitle}>
-              Showing {startIndex + 1}-{Math.min(endIndex, solverResults.length)} of{' '}
-              {solverResults.length} results
+              {solverResults.length === 0
+                ? 'No results available'
+                : `Showing ${startIndex + 1}-${Math.min(endIndex, solverResults.length)} of ${solverResults.length} results`}
             </Text>
           </View>
         </View>
@@ -206,57 +209,90 @@ export function SolverResultsPage({
             </View>
 
             {/* Table Body */}
-            <ScrollView style={styles.tableBody} nestedScrollEnabled>
-              {paginatedData.map((row, idx) => (
-                <View
-                  key={row.id}
-                  style={[
-                    styles.tableRow,
-                    idx % 2 === 0 && styles.tableRowEven,
-                  ]}>
-                  {COLUMNS.map(col => (
-                    <View
-                      key={col.key}
-                      style={[styles.cell, {width: colWidths[col.key]}]}>
-                      {col.key === 'status' ? (
-                        <View
-                          style={[
-                            styles.statusBadge,
-                            getStatusStyle(row.status),
-                          ]}>
+            {solverResults.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>No results available</Text>
+              </View>
+            ) : (
+              <ScrollView style={styles.tableBody} nestedScrollEnabled>
+                {paginatedData.map((row, idx) => (
+                  <View
+                    key={row.id}
+                    style={[
+                      styles.tableRow,
+                      idx % 2 === 0 && styles.tableRowEven,
+                    ]}>
+                    {COLUMNS.map(col => (
+                      <View
+                        key={col.key}
+                        style={[styles.cell, {width: colWidths[col.key]}]}>
+                        {col.key === 'status' ? (
+                          <View
+                            style={[
+                              styles.statusBadge,
+                              getStatusStyle(row.status),
+                            ]}>
+                            <Text
+                              style={[
+                                styles.statusBadgeText,
+                                getStatusTextStyle(row.status),
+                              ]}
+                              numberOfLines={1}>
+                              {row.status}
+                            </Text>
+                          </View>
+                        ) : (
                           <Text
                             style={[
-                              styles.statusBadgeText,
-                              getStatusTextStyle(row.status),
+                              styles.cellTextMono,
+                              getCellTextStyle(col.key),
                             ]}
                             numberOfLines={1}>
-                            {row.status}
+                            {formatValue(col.key, row[col.key as keyof SolverResult])}
                           </Text>
-                        </View>
-                      ) : (
-                        <Text
-                          style={[
-                            styles.cellTextMono,
-                            getCellTextStyle(col.key),
-                          ]}
-                          numberOfLines={1}>
-                          {formatValue(col.key, row[col.key as keyof SolverResult])}
-                        </Text>
-                      )}
-                    </View>
-                  ))}
-                </View>
-              ))}
-            </ScrollView>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                ))}
+              </ScrollView>
+            )}
           </View>
         </ScrollView>
       </View>
 
       {/* Pagination */}
       <View style={styles.paginationContainer}>
-        <Text style={styles.paginationText}>
-          Page {currentPage} of {totalPages}
-        </Text>
+        <View style={styles.paginationLeft}>
+          <Text style={styles.paginationText}>
+            Page {totalPages === 0 ? 0 : currentPage} of {totalPages}
+          </Text>
+          <View style={styles.rowsPerPageContainer}>
+            <Text style={styles.rowsPerPageLabel}>Rows per page:</Text>
+            <View style={styles.rowsPerPageSelect}>
+              {rowsPerPageOptions.map(option => (
+                <TouchableOpacity
+                  key={option}
+                  style={[
+                    styles.rowsPerPageOption,
+                    rowsPerPage === option && styles.rowsPerPageOptionActive,
+                  ]}
+                  onPress={() => {
+                    setRowsPerPage(option);
+                    setCurrentPage(1);
+                  }}>
+                  <Text
+                    style={[
+                      styles.rowsPerPageOptionText,
+                      rowsPerPage === option && styles.rowsPerPageOptionTextActive,
+                    ]}>
+                    {option}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
         <View style={styles.paginationButtons}>
           <TouchableOpacity
             style={[
@@ -482,6 +518,17 @@ const styles = StyleSheet.create({
   statusRejectedText: {
     color: colors.red,
   },
+  emptyState: {
+    flex: 1,
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 200,
+  },
+  emptyStateText: {
+    color: colors.textSecondary,
+    fontSize: 16,
+  },
   paginationContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -491,9 +538,44 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     marginTop: 12,
   },
+  paginationLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 24,
+  },
   paginationText: {
     fontSize: 12,
     color: colors.textTertiary,
+  },
+  rowsPerPageContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  rowsPerPageLabel: {
+    fontSize: 12,
+    color: colors.textTertiary,
+  },
+  rowsPerPageSelect: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  rowsPerPageOption: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 4,
+    backgroundColor: 'rgba(51, 65, 85, 0.6)',
+  },
+  rowsPerPageOptionActive: {
+    backgroundColor: colors.primary,
+  },
+  rowsPerPageOptionText: {
+    fontSize: 12,
+    color: colors.textTertiary,
+  },
+  rowsPerPageOptionTextActive: {
+    color: colors.text,
+    fontWeight: '600',
   },
   paginationButtons: {
     flexDirection: 'row',

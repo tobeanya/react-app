@@ -9,6 +9,7 @@ import {SolverResultsPage} from '../pages/SolverResultsPage';
 import {NPVResultsPage} from '../pages/NPVResultsPage';
 import {UnitAdditionResultsPage} from '../pages/UnitAdditionResultsPage';
 import {UnitRetirementResultsPage} from '../pages/UnitRetirementResultsPage';
+import {PlanHeader} from '../components/PlanHeader';
 import {
   ExpansionPlan,
   GenerationCandidate,
@@ -24,6 +25,20 @@ import {
 
 type TabName = 'Home' | 'Settings' | 'Candidates' | 'Run' | 'Status' | 'Results' | 'NPV Results' | 'Additions' | 'Retirements';
 
+// Configuration for which tabs show the PlanHeader
+// Set to true to show header on that tab, false to hide
+const TAB_HEADER_CONFIG: Record<TabName, boolean> = {
+  'Home': false,           // Home has its own plan selection UI
+  'Settings': true,
+  'Candidates': true,
+  'Run': true,
+  'Status': true,
+  'Results': true,
+  'NPV Results': true,
+  'Additions': true,
+  'Retirements': true,
+};
+
 interface Props {
   expansionPlans: ExpansionPlan[];
   generationCandidates: GenerationCandidate[];
@@ -33,7 +48,7 @@ interface Props {
   npvResults: NPVResult[];
   unitAdditionResults: UnitAdditionResult[];
   unitRetirementResults: UnitRetirementResult[];
-  solverStatus: SolverStatusType;
+  solverStatuses: Record<string, SolverStatusType>;
   selectedPlanId: string | null;
   isModalOpen: boolean;
   onSelectPlan: (id: string) => void;
@@ -47,9 +62,9 @@ interface Props {
   onCreateTransmissionCandidate: (candidate: Omit<TransmissionCandidate, 'id'>) => void;
   onUpdateTransmissionCandidate: (candidate: TransmissionCandidate) => void;
   onDeleteTransmissionCandidates: (ids: string[]) => void;
-  onStartSolver: () => void;
-  onStopSolver: () => void;
-  onPauseSolver: () => void;
+  onStartSolver: (planId: string) => void;
+  onStopSolver: (planId: string) => void;
+  onPauseSolver: (planId: string) => void;
   onSaveAll: () => void;
   onModalVisibleChange: (visible: boolean) => void;
 }
@@ -63,7 +78,7 @@ export function TopTabNavigator({
   npvResults,
   unitAdditionResults,
   unitRetirementResults,
-  solverStatus,
+  solverStatuses,
   selectedPlanId,
   isModalOpen,
   onSelectPlan,
@@ -85,6 +100,11 @@ export function TopTabNavigator({
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabName>('Home');
   const selectedPlan = expansionPlans.find(p => p.id === selectedPlanId) ?? null;
+
+  // Get solver status for the selected plan (defaults to 'inactive')
+  const selectedPlanStatus: SolverStatusType = selectedPlanId
+    ? (solverStatuses[selectedPlanId] || 'inactive')
+    : 'inactive';
 
   // Get available regions from the selected plan's source study
   const getAvailableRegions = () => {
@@ -121,6 +141,16 @@ export function TopTabNavigator({
           </TouchableOpacity>
         ))}
       </ScrollView>
+
+      {/* Plan Header - conditionally shown based on active tab */}
+      {TAB_HEADER_CONFIG[activeTab] && (
+        <PlanHeader
+          expansionPlans={expansionPlans}
+          selectedPlan={selectedPlan}
+          solverStatus={selectedPlanStatus}
+          onSelectPlan={onSelectPlan}
+        />
+      )}
 
       <View style={styles.content}>
         {activeTab === 'Home' && (
@@ -164,18 +194,18 @@ export function TopTabNavigator({
           <RunPage
             expansionPlans={expansionPlans}
             selectedPlanId={selectedPlanId}
+            solverStatuses={solverStatuses}
             onSelectPlan={onSelectPlan}
             onStartSolver={onStartSolver}
             onStopSolver={onStopSolver}
             onPauseSolver={onPauseSolver}
-            solverStatus={solverStatus}
             onModalVisibleChange={onModalVisibleChange}
           />
         )}
         {activeTab === 'Status' && (
           <SolverStatusPage
             solverLogs={solverLogs}
-            solverStatus={solverStatus}
+            solverStatus={selectedPlanStatus}
             onModalVisibleChange={onModalVisibleChange}
           />
         )}
@@ -195,12 +225,16 @@ export function TopTabNavigator({
           <UnitAdditionResultsPage
             unitAdditionResults={unitAdditionResults}
             onModalVisibleChange={onModalVisibleChange}
+            planningHorizonStart={selectedPlan?.planningHorizonStart ?? 2026}
+            planningHorizonEnd={selectedPlan?.planningHorizonEnd ?? 2030}
           />
         )}
         {activeTab === 'Retirements' && (
           <UnitRetirementResultsPage
             unitRetirementResults={unitRetirementResults}
             onModalVisibleChange={onModalVisibleChange}
+            planningHorizonStart={selectedPlan?.planningHorizonStart ?? 2026}
+            planningHorizonEnd={selectedPlan?.planningHorizonEnd ?? 2030}
           />
         )}
       </View>

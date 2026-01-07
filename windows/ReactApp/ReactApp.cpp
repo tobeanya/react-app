@@ -75,7 +75,7 @@ _Use_decl_annotations_ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR 
 
   // Get the ReactViewOptions so we can set the initial RN component to load
   auto viewOptions{reactNativeWin32App.ReactViewOptions()};
-  viewOptions.ComponentName(L"ReactApp");
+  viewOptions.ComponentName(L"ExpansionPlanning");
 
   // Start the app
   reactNativeWin32App.Start();

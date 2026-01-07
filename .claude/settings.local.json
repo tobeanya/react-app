@@ -33,7 +33,12 @@
       "Bash(dir:*)",
       "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\tobet\\\\Projects\\\\react-app\\\\windows\\\\ReactApp.Package\\\\AppPackages\\\\ReactApp.Package_1.0.0.0_x64_Test\\\\Install.ps1\" -Force)",
       "Bash(explorer.exe \"shell:AppsFolder\\\\ReactApp_gre46ge5r5092!App\")",
-      "Bash(start \"\" \"shell:AppsFolder\\\\ReactApp_gre46ge5r5092!App\")"
+      "Bash(start \"\" \"shell:AppsFolder\\\\ReactApp_gre46ge5r5092!App\")",
+      "Bash(ls:*)",
+      "Bash(powershell.exe -Command \"Get-AppxPackage -Name ''*React*''\")",
+      "Bash(powershell.exe -Command \"Get-AppxPackage -Name ''*Expansion*''\")",
+      "Bash(explorer.exe \"shell:AppsFolder\\\\ReactApp_vzcs5w9rwmp40!App\")",
+      "Bash(powershell.exe -Command \"Get-StartApps | Where-Object { $_.Name -like ''*Expansion*'' -or $_.Name -like ''*React*'' }\")"
     ]
   }
 }

@@ -243,14 +243,16 @@ export function RunPage({
       <View style={styles.content}>
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.headerIcon}>
-            <Text style={styles.headerIconText}>▶</Text>
-          </View>
-          <View>
-            <Text style={styles.headerTitle}>RUN</Text>
-            <Text style={styles.headerSubtitle}>
-              Execute and monitor expansion planning optimization
-            </Text>
+          <View style={styles.headerLeft}>
+            <View style={styles.headerIconContainer}>
+              <Text style={styles.headerIcon}>▶</Text>
+            </View>
+            <View>
+              <Text style={styles.headerTitle}>RUN</Text>
+              <Text style={styles.headerSubtitle}>
+                Execute and monitor expansion planning optimization
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -503,15 +505,20 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15, 23, 42, 0.95)',
   },
   content: {
-    padding: 24,
+    padding: 16,
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24,
-    gap: 16,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
   },
-  headerIcon: {
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerIconContainer: {
     width: 48,
     height: 48,
     borderRadius: 12,
@@ -519,15 +526,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  headerIconText: {
+  headerIcon: {
     color: '#fff',
-    fontSize: 20,
+    fontSize: 24,
+    fontWeight: '700',
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: '700',
     color: '#fff',
-    letterSpacing: 2,
+    letterSpacing: 1,
   },
   headerSubtitle: {
     fontSize: 13,

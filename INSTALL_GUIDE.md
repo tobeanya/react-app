@@ -1,10 +1,10 @@
-# How to Install ReactApp on Windows
+# How to Install Expansion Planning on Windows
 
 Follow these simple steps to install the application.
 
 ### Step 1: Download and Unzip the Installer
 
-1.  Download the installer package. It will be a zip file named something like `ReactApp-Release-v1.0.0.zip`.
+1.  Download the installer package. It will be a zip file named something like `ExpansionPlanning-Release-v1.0.0.zip`.
     *   **[Click here to download the latest version]** *(You will need to replace this with a link to your installer file)*
 2.  Go to your **Downloads** folder, right-click on the zip file, and select **"Extract All..."**. Click **"Extract"** to unzip the files into a new folder.
 
@@ -24,6 +24,6 @@ Follow these simple steps to install the application.
 
 Once the installation is complete, the window will say "Press any key to exit...".
 
-You can now open the **Start Menu** and find **ReactApp** to launch it, just like any other application.
+You can now open the **Start Menu** and find **Expansion Planning** to launch it, just like any other application.
 
 

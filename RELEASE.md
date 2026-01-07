@@ -1,6 +1,6 @@
 # Release Build & Distribution Guide
 
-This guide covers building and distributing the ReactApp for Windows.
+This guide covers building and distributing Expansion Planning for Windows.
 
 ## Prerequisites (Build Machine)
 
@@ -25,7 +25,7 @@ npm install
 
 ```powershell
 # Remove existing installation (run as Administrator for --AllUsers)
-Get-AppxPackage -AllUsers -Name "ReactApp" | Remove-AppxPackage -AllUsers
+Get-AppxPackage -AllUsers -Name "ExpansionPlanning" | Remove-AppxPackage -AllUsers
 ```
 
 ### Step 3: Build Release
@@ -92,7 +92,7 @@ Compress-Archive -Path "windows\ReactApp.Package\bin\x64\Release\AppX\*" -Destin
 
 1. Remove any existing version first (run as Administrator):
    ```powershell
-   Get-AppxPackage -AllUsers -Name "ReactApp" | Remove-AppxPackage -AllUsers
+   Get-AppxPackage -AllUsers -Name "ExpansionPlanning" | Remove-AppxPackage -AllUsers
    ```
 
 2. Extract the zip file to a permanent location (e.g., `C:\Apps\ReactApp\`)
@@ -121,7 +121,7 @@ Compress-Archive -Path "windows\ReactApp.Package\bin\x64\Release\AppX\*" -Destin
 
 **Uninstall:**
 ```powershell
-Get-AppxPackage -Name "ReactApp" | Remove-AppxPackage
+Get-AppxPackage -Name "ExpansionPlanning" | Remove-AppxPackage
 ```
 
 ---
@@ -154,7 +154,7 @@ Edit `windows/ReactApp.Package/Package.appxmanifest`:
 
 Change the `Publisher` attribute in the `<Identity>` element to match your certificate:
 ```xml
-<Identity Name="ReactApp" Publisher="CN=YourCompanyName" Version="1.0.0.0" />
+<Identity Name="ExpansionPlanning" Publisher="CN=YourCompanyName" Version="1.0.0.0" />
 ```
 
 #### Step 3: Build with Signing
@@ -306,7 +306,7 @@ npx react-native run-windows --release --arch x64 --no-launch --no-deploy
 ### "Deployment failed with HRESULT: 0x80073CFB"
 An older version is installed. Remove it first:
 ```powershell
-Get-AppxPackage -Name "ReactApp" | Remove-AppxPackage
+Get-AppxPackage -Name "ExpansionPlanning" | Remove-AppxPackage
 ```
 
 ### "Another user has already installed an unpackaged version" (0x80073D19)
@@ -315,10 +315,10 @@ Debug and release builds conflict because they have different signing. Another u
 Fix (run as Administrator):
 ```powershell
 # Remove for ALL users on the machine
-Get-AppxPackage -AllUsers -Name "ReactApp" | Remove-AppxPackage -AllUsers
+Get-AppxPackage -AllUsers -Name "ExpansionPlanning" | Remove-AppxPackage -AllUsers
 
 # Also remove any provisioned packages
-Get-AppxProvisionedPackage -Online | Where-Object {$_.DisplayName -like "*ReactApp*"} | Remove-AppxProvisionedPackage -Online
+Get-AppxProvisionedPackage -Online | Where-Object {$_.DisplayName -like "*ExpansionPlanning*"} | Remove-AppxProvisionedPackage -Online
 ```
 
 **Prevention:** Always uninstall before switching between debug and release builds (see Step 2 in Building a Release Version).
@@ -335,7 +335,7 @@ AppX/ReactApp/Bundle/index.windows.bundle
 
 Update version in `windows/ReactApp.Package/Package.appxmanifest`:
 ```xml
-<Identity Name="ReactApp" Publisher="CN=tobet" Version="1.0.1.0" />
+<Identity Name="ExpansionPlanning" Publisher="CN=PowerGEM" Version="1.0.1.0" />
 ```
 
 Version format: `Major.Minor.Build.Revision`
@@ -350,5 +350,5 @@ Version format: `Major.Minor.Build.Revision`
 | Build Debug | `npx react-native run-windows` |
 | Create ZIP | `Compress-Archive -Path "windows\ReactApp.Package\bin\x64\Release\AppX\*" -DestinationPath "ReactApp.zip"` |
 | Install (loose) | `Add-AppxPackage -Register "AppxManifest.xml"` |
-| Uninstall | `Get-AppxPackage -Name "ReactApp" \| Remove-AppxPackage` |
+| Uninstall | `Get-AppxPackage -Name "ExpansionPlanning" \| Remove-AppxPackage` |
 | Launch | `start "" "shell:AppsFolder\ReactApp_gre46ge5r5092!App"` |

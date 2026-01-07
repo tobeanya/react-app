@@ -35,8 +35,6 @@ export function UnitRetirementResultsPage({
     direction: 'asc',
   });
 
-  const hasData = unitRetirementResults.length > 0;
-
   // Generate year columns based on planning horizon (max 5 years for display)
   const years = useMemo(() => {
     const result: number[] = [];
@@ -104,10 +102,6 @@ export function UnitRetirementResultsPage({
   }, [unitRetirementResults, sortConfig]);
 
   const handleCopyToClipboard = () => {
-    if (!hasData) {
-      Alert.alert('Info', 'No data to copy');
-      return;
-    }
     try {
       const headers = [
         'Candidate',
@@ -133,10 +127,6 @@ export function UnitRetirementResultsPage({
   };
 
   const handleExport = () => {
-    if (!hasData) {
-      Alert.alert('Info', 'No data to export');
-      return;
-    }
     try {
       const data = JSON.stringify(sortedData, null, 2);
       Clipboard.setString(data);
@@ -209,50 +199,19 @@ export function UnitRetirementResultsPage({
         </View>
         <View style={styles.headerRight}>
           <TouchableOpacity
-            style={[styles.secondaryButton, !hasData && styles.buttonDisabled]}
-            onPress={handleCopyToClipboard}
-            disabled={!hasData}>
-            <Text
-              style={[
-                styles.secondaryButtonText,
-                !hasData && styles.buttonTextDisabled,
-              ]}>
-              Copy
-            </Text>
+            style={styles.secondaryButton}
+            onPress={handleCopyToClipboard}>
+            <Text style={styles.secondaryButtonText}>Copy</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.primaryButton, !hasData && styles.buttonDisabled]}
-            onPress={handleExport}
-            disabled={!hasData}>
-            <Text
-              style={[
-                styles.primaryButtonText,
-                !hasData && styles.buttonTextDisabled,
-              ]}>
-              Export
-            </Text>
+          <TouchableOpacity style={styles.primaryButton} onPress={handleExport}>
+            <Text style={styles.primaryButtonText}>Export</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Info Banner - shown when no retirements */}
-      {!hasData && (
-        <View style={styles.infoBanner}>
-          <View style={styles.infoBannerBorder} />
-          <View style={styles.infoBannerContent}>
-            <Text style={styles.infoBannerTitle}>No Retirements Scheduled</Text>
-            <Text style={styles.infoBannerText}>
-              The optimization solver has not identified any existing units for
-              retirement in the current planning horizon. This may indicate
-              sufficient existing capacity or economic viability of current assets.
-            </Text>
-          </View>
-        </View>
-      )}
-
       {/* Summary Statistics */}
       <View style={styles.statsContainer}>
-        <View style={[styles.statCard, !hasData && styles.statCardEmpty]}>
+        <View style={styles.statCard}>
           <View style={[styles.statIconContainer, styles.statIconRed]}>
             <Text style={[styles.statIcon, styles.statIconTextRed]}>X</Text>
           </View>
@@ -261,7 +220,7 @@ export function UnitRetirementResultsPage({
           <Text style={styles.statSubtext}>Total Units</Text>
         </View>
 
-        <View style={[styles.statCard, !hasData && styles.statCardEmpty]}>
+        <View style={styles.statCard}>
           <View style={[styles.statIconContainer, styles.statIconOrange]}>
             <Text style={[styles.statIcon, styles.statIconTextOrange]}>MW</Text>
           </View>
@@ -271,101 +230,101 @@ export function UnitRetirementResultsPage({
         </View>
       </View>
 
-      {/* Data Table or Empty State */}
-      {hasData ? (
-        <View style={styles.tableContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator>
-            <View>
-              {/* Table Header */}
-              <View style={styles.tableHeader}>
-                <TouchableOpacity
-                  style={[styles.headerCell, {width: 200}]}
-                  onPress={() => handleSort('candidate')}>
-                  <Text style={styles.headerCellText}>
-                    CANDIDATE{getSortIndicator('candidate')}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.headerCell, {width: 120}]}
-                  onPress={() => handleSort('technology')}>
-                  <Text style={styles.headerCellText}>
-                    TECHNOLOGY{getSortIndicator('technology')}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.headerCell, styles.headerCellRight, {width: 140}]}
-                  onPress={() => handleSort('totalCapacity')}>
-                  <Text style={styles.headerCellText}>
-                    TOTAL CAPACITY (MW){getSortIndicator('totalCapacity')}
-                  </Text>
-                </TouchableOpacity>
-                {years.map(year => (
-                  <View
-                    key={year}
-                    style={[styles.headerCell, styles.headerCellRight, {width: 100}]}>
-                    <Text style={styles.headerCellText}>{year}</Text>
-                  </View>
-                ))}
-              </View>
+      {/* Data Table */}
+      <View style={styles.tableContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator>
+          <View>
+            {/* Table Header */}
+            <View style={styles.tableHeader}>
+              <TouchableOpacity
+                style={[styles.headerCell, {width: 200}]}
+                onPress={() => handleSort('candidate')}>
+                <Text style={styles.headerCellText}>
+                  CANDIDATE{getSortIndicator('candidate')}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.headerCell, {width: 120}]}
+                onPress={() => handleSort('technology')}>
+                <Text style={styles.headerCellText}>
+                  TECHNOLOGY{getSortIndicator('technology')}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.headerCell, styles.headerCellRight, {width: 140}]}
+                onPress={() => handleSort('totalCapacity')}>
+                <Text style={styles.headerCellText}>
+                  TOTAL CAPACITY (MW){getSortIndicator('totalCapacity')}
+                </Text>
+              </TouchableOpacity>
+              {years.map(year => (
+                <View
+                  key={year}
+                  style={[styles.headerCell, styles.headerCellRight, {width: 100}]}>
+                  <Text style={styles.headerCellText}>{year}</Text>
+                </View>
+              ))}
+            </View>
 
-              {/* Table Body */}
-              <ScrollView style={styles.tableBody} nestedScrollEnabled>
-                {sortedData.map((item, idx) => (
-                  <View
-                    key={item.id}
-                    style={[styles.tableRow, idx % 2 === 0 && styles.tableRowEven]}>
-                    <View style={[styles.cell, {width: 200}]}>
-                      <Text style={styles.cellTextPrimary}>{item.candidate}</Text>
-                      <Text style={styles.cellTextSecondary}>{item.region}</Text>
+            {/* Table Body */}
+            <ScrollView style={styles.tableBody} nestedScrollEnabled>
+              {sortedData.map((item, idx) => (
+                <View
+                  key={item.id}
+                  style={[styles.tableRow, idx % 2 === 0 && styles.tableRowEven]}>
+                  <View style={[styles.cell, {width: 200}]}>
+                    <Text style={styles.cellTextPrimary}>{item.candidate}</Text>
+                    <Text style={styles.cellTextSecondary}>{item.region}</Text>
+                  </View>
+                  <View style={[styles.cell, {width: 120}]}>
+                    <View
+                      style={[
+                        styles.techBadge,
+                        getTechnologyStyle(item.technology),
+                      ]}>
+                      <Text
+                        style={[
+                          styles.techBadgeText,
+                          getTechnologyTextStyle(item.technology),
+                        ]}>
+                        {item.technology}
+                      </Text>
                     </View>
-                    <View style={[styles.cell, {width: 120}]}>
+                  </View>
+                  <View style={[styles.cell, styles.cellRight, {width: 140}]}>
+                    <Text style={styles.cellTextValue}>
+                      {formatNumber(item.totalCapacity)}
+                    </Text>
+                    <View style={styles.capacityBarContainer}>
                       <View
                         style={[
-                          styles.techBadge,
-                          getTechnologyStyle(item.technology),
-                        ]}>
+                          styles.capacityBar,
+                          {
+                            width: `${(item.totalCapacity / summary.totalCapacity) * 100}%`,
+                          },
+                        ]}
+                      />
+                    </View>
+                  </View>
+                  {years.map(year => {
+                    const value = getYearValue(item, year);
+                    return (
+                      <View key={year} style={[styles.cell, styles.cellRight, {width: 100}]}>
                         <Text
                           style={[
-                            styles.techBadgeText,
-                            getTechnologyTextStyle(item.technology),
+                            styles.cellTextValue,
+                            value > 0 ? styles.cellTextRed : styles.cellTextMuted,
                           ]}>
-                          {item.technology}
+                          {value > 0 ? formatNumber(value) : '—'}
                         </Text>
                       </View>
-                    </View>
-                    <View style={[styles.cell, styles.cellRight, {width: 140}]}>
-                      <Text style={styles.cellTextValue}>
-                        {formatNumber(item.totalCapacity)}
-                      </Text>
-                      <View style={styles.capacityBarContainer}>
-                        <View
-                          style={[
-                            styles.capacityBar,
-                            {
-                              width: `${(item.totalCapacity / summary.totalCapacity) * 100}%`,
-                            },
-                          ]}
-                        />
-                      </View>
-                    </View>
-                    {years.map(year => {
-                      const value = getYearValue(item, year);
-                      return (
-                        <View key={year} style={[styles.cell, styles.cellRight, {width: 100}]}>
-                          <Text
-                            style={[
-                              styles.cellTextValue,
-                              value > 0 ? styles.cellTextRed : styles.cellTextMuted,
-                            ]}>
-                            {value > 0 ? formatNumber(value) : '—'}
-                          </Text>
-                        </View>
-                      );
-                    })}
-                  </View>
-                ))}
+                    );
+                  })}
+                </View>
+              ))}
 
-                {/* Footer/Total Row */}
+              {/* Footer/Total Row */}
+              {sortedData.length > 0 && (
                 <View style={styles.tableFooter}>
                   <View style={[styles.cell, {width: 200}]}>
                     <Text style={styles.footerText}>Total</Text>
@@ -391,28 +350,17 @@ export function UnitRetirementResultsPage({
                     );
                   })}
                 </View>
-              </ScrollView>
-            </View>
-          </ScrollView>
-        </View>
-      ) : (
-        <View style={styles.emptyState}>
-          <View style={styles.emptyStateIconContainer}>
-            <Text style={styles.emptyStateIcon}>X</Text>
+              )}
+
+              {sortedData.length === 0 && (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyStateText}>No unit retirements scheduled</Text>
+                </View>
+              )}
+            </ScrollView>
           </View>
-          <Text style={styles.emptyStateTitle}>No Retirements Scheduled</Text>
-          <Text style={styles.emptyStateText}>
-            The optimization solver has determined that no existing generation units
-            should be retired during the planning horizon based on current economic
-            and operational constraints.
-          </Text>
-          <View style={styles.emptyStateInfo}>
-            <Text style={styles.emptyStateInfoText}>
-              This is a common result when existing assets remain economically viable
-            </Text>
-          </View>
-        </View>
-      )}
+        </ScrollView>
+      </View>
     </View>
   );
 }
@@ -484,61 +432,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
-  buttonDisabled: {
-    opacity: 0.4,
-  },
-  buttonTextDisabled: {
-    color: colors.textQuaternary,
-  },
-  infoBanner: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-    borderRadius: 12,
-    marginBottom: 16,
-    overflow: 'hidden',
-  },
-  infoBannerBorder: {
-    width: 4,
-    backgroundColor: colors.primary,
-  },
-  infoBannerContent: {
-    flex: 1,
-    padding: 16,
-  },
-  infoBannerTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#93c5fd',
-    marginBottom: 4,
-  },
-  infoBannerText: {
-    fontSize: 13,
-    color: colors.textTertiary,
-    lineHeight: 20,
-  },
   statsContainer: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 16,
     marginBottom: 16,
   },
   statCard: {
     flex: 1,
-    padding: 16,
+    padding: 20,
     borderRadius: 12,
     backgroundColor: 'rgba(30, 41, 59, 0.5)',
     borderWidth: 1,
     borderColor: 'rgba(239, 68, 68, 0.3)',
   },
-  statCardEmpty: {
-    opacity: 0.5,
-  },
   statIconContainer: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   statIconRed: {
     backgroundColor: 'rgba(239, 68, 68, 0.2)',
@@ -560,7 +473,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     letterSpacing: 1,
-    marginBottom: 6,
+    marginBottom: 8,
   },
   statLabelRed: {
     color: '#fca5a5',
@@ -569,14 +482,14 @@ const styles = StyleSheet.create({
     color: '#fdba74',
   },
   statValue: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '700',
     color: colors.text,
   },
   statSubtext: {
     fontSize: 12,
     color: colors.textQuaternary,
-    marginTop: 2,
+    marginTop: 4,
   },
   tableContainer: {
     flex: 1,
@@ -719,54 +632,11 @@ const styles = StyleSheet.create({
     color: colors.textQuaternary,
   },
   emptyState: {
-    flex: 1,
-    backgroundColor: 'rgba(30, 41, 59, 0.4)',
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: 'rgba(100, 116, 139, 0.3)',
-    borderStyle: 'dashed',
-    padding: 48,
+    padding: 40,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyStateIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(51, 65, 85, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  emptyStateIcon: {
-    fontSize: 40,
-    fontWeight: '700',
-    color: colors.textQuaternary,
-  },
-  emptyStateTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    marginBottom: 12,
   },
   emptyStateText: {
-    fontSize: 14,
-    color: colors.textQuaternary,
-    textAlign: 'center',
-    maxWidth: 400,
-    lineHeight: 22,
-    marginBottom: 24,
-  },
-  emptyStateInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(51, 65, 85, 0.5)',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  emptyStateInfoText: {
-    fontSize: 13,
     color: colors.textTertiary,
+    fontSize: 14,
   },
 });

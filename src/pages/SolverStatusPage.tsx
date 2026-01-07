@@ -130,9 +130,11 @@ export function SolverStatusPage({
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={styles.headerIndicator} />
+          <View style={styles.headerIconContainer}>
+            <Text style={styles.headerIcon}>▤</Text>
+          </View>
           <View>
-            <Text style={styles.headerTitle}>Solver Execution Log</Text>
+            <Text style={styles.headerTitle}>SOLVER EXECUTION LOG</Text>
             <Text style={styles.headerSubtitle}>
               Real-time solver status and execution messages
             </Text>
@@ -240,20 +242,27 @@ const styles = StyleSheet.create({
   },
   headerLeft: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: 12,
   },
-  headerIndicator: {
-    width: 4,
-    height: 24,
-    backgroundColor: colors.indicatorGreen,
-    borderRadius: 2,
-    marginTop: 2,
+  headerIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#f59e0b',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerIcon: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: '700',
     color: colors.text,
+    letterSpacing: 1,
   },
   headerSubtitle: {
     fontSize: 14,

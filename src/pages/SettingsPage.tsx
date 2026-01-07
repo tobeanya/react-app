@@ -93,6 +93,17 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
   const [region, setRegion] = useState<Region>('ERCOT');
   const [settings, setSettings] = useState<ExpansionPlanSettings>(DEFAULT_SETTINGS);
 
+  // Local string state for numeric inputs (allows editing without immediate parsing)
+  const [numericInputs, setNumericInputs] = useState({
+    simulationYearStepSize: '',
+    baseYear: '',
+    automatedResubmissionTime: '',
+    economicDiscountRate: '',
+    reliabilityDiscountRate: '',
+    iterationsPromptYear: '',
+    iterationsFutureYear: '',
+  });
+
   // Constraint modal state
   const [showConstraintModal, setShowConstraintModal] = useState(false);
   const [constraintForm, setConstraintForm] = useState({
@@ -132,6 +143,16 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
       setSourceStudyId(selectedPlan.sourceStudyId);
       setRegion(selectedPlan.region);
       setSettings(selectedPlan.settings);
+      // Initialize numeric input strings from settings
+      setNumericInputs({
+        simulationYearStepSize: selectedPlan.settings.simulationYearStepSize.toString(),
+        baseYear: selectedPlan.settings.baseYear.toString(),
+        automatedResubmissionTime: selectedPlan.settings.automatedResubmissionTime.toString(),
+        economicDiscountRate: selectedPlan.settings.economicDiscountRate.toString(),
+        reliabilityDiscountRate: selectedPlan.settings.reliabilityDiscountRate.toString(),
+        iterationsPromptYear: selectedPlan.settings.iterationsPromptYear.toString(),
+        iterationsFutureYear: selectedPlan.settings.iterationsFutureYear.toString(),
+      });
     }
   }, [selectedPlan]);
 
@@ -210,6 +231,27 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
       region,
       settings: newSettings,
     });
+  };
+
+  // Handle numeric input change (just update local string state)
+  const handleNumericInputChange = (field: keyof typeof numericInputs, value: string) => {
+    setNumericInputs(prev => ({...prev, [field]: value}));
+  };
+
+  // Handle numeric input blur (parse and apply default if needed)
+  const handleNumericInputBlur = (
+    field: keyof typeof numericInputs,
+    settingsKey: keyof ExpansionPlanSettings,
+    defaultValue: number,
+    isFloat: boolean = false
+  ) => {
+    const rawValue = numericInputs[field];
+    const parsed = isFloat ? parseFloat(rawValue) : parseInt(rawValue, 10);
+    const finalValue = isNaN(parsed) ? defaultValue : parsed;
+    // Update the local string state to show the final value
+    setNumericInputs(prev => ({...prev, [field]: finalValue.toString()}));
+    // Update the actual settings
+    updateSettings(settingsKey, finalValue as any);
   };
 
   const handleSave = () => {
@@ -390,8 +432,15 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
       focusable={anyModalOpen}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Simulation Setup</Text>
-        <Text style={styles.headerSubtitle}>Configure expansion plan parameters and solver settings</Text>
+        <View style={styles.headerLeft}>
+          <View style={styles.headerIconContainer}>
+            <Text style={styles.headerIcon}>⚙</Text>
+          </View>
+          <View>
+            <Text style={styles.headerTitle}>SIMULATION SETUP</Text>
+            <Text style={styles.headerSubtitle}>Configure expansion plan parameters and solver settings</Text>
+          </View>
+        </View>
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
@@ -520,33 +569,43 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
               />
               <InputField
                 label="SIMULATION YEAR STEP SIZE"
-                value={settings.simulationYearStepSize.toString()}
-                onChangeText={v => updateSettings('simulationYearStepSize', parseInt(v, 10) || 1)}
+                value={numericInputs.simulationYearStepSize}
+                onChangeText={v => handleNumericInputChange('simulationYearStepSize', v)}
+                onBlur={() => handleNumericInputBlur('simulationYearStepSize', 'simulationYearStepSize', 1)}
                 keyboardType="numeric"
+                inputType="integer"
               />
               <InputField
                 label="BASE YEAR"
-                value={settings.baseYear.toString()}
-                onChangeText={v => updateSettings('baseYear', parseInt(v, 10) || 2025)}
+                value={numericInputs.baseYear}
+                onChangeText={v => handleNumericInputChange('baseYear', v)}
+                onBlur={() => handleNumericInputBlur('baseYear', 'baseYear', 2025)}
                 keyboardType="numeric"
+                inputType="integer"
               />
               <InputField
                 label="AUTOMATED RESUBMISSION TIME (MINS)"
-                value={settings.automatedResubmissionTime.toString()}
-                onChangeText={v => updateSettings('automatedResubmissionTime', parseInt(v, 10) || 0)}
+                value={numericInputs.automatedResubmissionTime}
+                onChangeText={v => handleNumericInputChange('automatedResubmissionTime', v)}
+                onBlur={() => handleNumericInputBlur('automatedResubmissionTime', 'automatedResubmissionTime', 0)}
                 keyboardType="numeric"
+                inputType="integer"
               />
               <InputField
                 label="ECONOMIC DISCOUNT RATE (%)"
-                value={settings.economicDiscountRate.toString()}
-                onChangeText={v => updateSettings('economicDiscountRate', parseFloat(v) || 0)}
+                value={numericInputs.economicDiscountRate}
+                onChangeText={v => handleNumericInputChange('economicDiscountRate', v)}
+                onBlur={() => handleNumericInputBlur('economicDiscountRate', 'economicDiscountRate', 0, true)}
                 keyboardType="numeric"
+                inputType="decimal"
               />
               <InputField
                 label="RELIABILITY DISCOUNT RATE (%)"
-                value={settings.reliabilityDiscountRate.toString()}
-                onChangeText={v => updateSettings('reliabilityDiscountRate', parseFloat(v) || 0)}
+                value={numericInputs.reliabilityDiscountRate}
+                onChangeText={v => handleNumericInputChange('reliabilityDiscountRate', v)}
+                onBlur={() => handleNumericInputBlur('reliabilityDiscountRate', 'reliabilityDiscountRate', 0, true)}
                 keyboardType="numeric"
+                inputType="decimal"
               />
             </View>
 
@@ -589,17 +648,21 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
                 <View style={styles.col}>
                   <InputField
                     label="PROMPT YEAR"
-                    value={settings.iterationsPromptYear.toString()}
-                    onChangeText={v => updateSettings('iterationsPromptYear', parseInt(v, 10) || 1)}
+                    value={numericInputs.iterationsPromptYear}
+                    onChangeText={v => handleNumericInputChange('iterationsPromptYear', v)}
+                    onBlur={() => handleNumericInputBlur('iterationsPromptYear', 'iterationsPromptYear', 1)}
                     keyboardType="numeric"
+                    inputType="integer"
                   />
                 </View>
                 <View style={styles.col}>
                   <InputField
                     label="FUTURE YEAR"
-                    value={settings.iterationsFutureYear.toString()}
-                    onChangeText={v => updateSettings('iterationsFutureYear', parseInt(v, 10) || 5)}
+                    value={numericInputs.iterationsFutureYear}
+                    onChangeText={v => handleNumericInputChange('iterationsFutureYear', v)}
+                    onBlur={() => handleNumericInputBlur('iterationsFutureYear', 'iterationsFutureYear', 5)}
                     keyboardType="numeric"
+                    inputType="integer"
                   />
                 </View>
               </View>
@@ -984,17 +1047,38 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     backgroundColor: colors.backgroundDark,
-    padding: 20,
-    paddingTop: 16,
-    paddingBottom: 16,
+    padding: 16,
+    marginBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#64748b',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerIcon: {
+    fontSize: 24,
+    fontWeight: '700',
     color: colors.text,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.text,
+    letterSpacing: 1,
   },
   headerSubtitle: {
     fontSize: 13,

@@ -182,7 +182,12 @@ export function HomePage({
       onKeyUp={modalVisible ? handleKeyDown : undefined}
       focusable={modalVisible}>
       <View style={styles.header}>
-        <Text style={styles.title}>Expansion Plans</Text>
+        <View style={styles.headerLeft}>
+          <View style={styles.headerIconContainer}>
+            <Text style={styles.headerIcon}>☰</Text>
+          </View>
+          <Text style={styles.title}>EXPANSION PLANS</Text>
+        </View>
         <TouchableOpacity style={styles.createButton} onPress={openCreateModal}>
           <Text style={styles.createButtonText}>+ New Plan</Text>
         </TouchableOpacity>
@@ -271,10 +276,29 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#8b5cf6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerIcon: {
+    fontSize: 24,
+    fontWeight: '700',
     color: colors.text,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.text,
+    letterSpacing: 1,
   },
   createButton: {
     backgroundColor: colors.primary,

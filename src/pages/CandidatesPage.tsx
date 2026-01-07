@@ -341,6 +341,22 @@ export function CandidatesPage({
     return value === null ? '-' : value.toString();
   };
 
+  // Input validation helpers
+  const filterInteger = (text: string): string => {
+    return text.replace(/[^0-9]/g, '');
+  };
+
+  const filterDecimal = (text: string): string => {
+    // Remove non-numeric characters except decimal point
+    let filtered = text.replace(/[^0-9.]/g, '');
+    // Ensure only one decimal point
+    const parts = filtered.split('.');
+    if (parts.length > 2) {
+      filtered = parts[0] + '.' + parts.slice(1).join('');
+    }
+    return filtered;
+  };
+
   // Render resize handle
   const renderResizeHandle = (table: 'gen' | 'trans', column: string) => (
     <View
@@ -375,6 +391,19 @@ export function CandidatesPage({
       onKeyDown={anyModalOpen ? handleKeyDown : undefined}
       onKeyUp={anyModalOpen ? handleKeyDown : undefined}
       focusable={anyModalOpen}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <View style={styles.headerIconContainer}>
+            <Text style={styles.headerIcon}>⬡</Text>
+          </View>
+          <View>
+            <Text style={styles.headerTitle}>CANDIDATES</Text>
+            <Text style={styles.headerSubtitle}>Manage generation and transmission expansion candidates</Text>
+          </View>
+        </View>
+      </View>
+
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Generation Candidates Section */}
         <View style={styles.section}>
@@ -631,7 +660,7 @@ export function CandidatesPage({
                   <TextInput
                     style={styles.formInput}
                     value={genForm.capacity}
-                    onChangeText={v => setGenForm(f => ({...f, capacity: v}))}
+                    onChangeText={v => setGenForm(f => ({...f, capacity: filterDecimal(v)}))}
                     keyboardType="numeric"
                     placeholderTextColor="#64748b"
                   />
@@ -641,7 +670,7 @@ export function CandidatesPage({
                   <TextInput
                     style={styles.formInput}
                     value={genForm.fixedCost}
-                    onChangeText={v => setGenForm(f => ({...f, fixedCost: v}))}
+                    onChangeText={v => setGenForm(f => ({...f, fixedCost: filterDecimal(v)}))}
                     keyboardType="numeric"
                     placeholderTextColor="#64748b"
                   />
@@ -677,7 +706,7 @@ export function CandidatesPage({
                   <TextInput
                     style={styles.formInput}
                     value={genForm.lifetime}
-                    onChangeText={v => setGenForm(f => ({...f, lifetime: v}))}
+                    onChangeText={v => setGenForm(f => ({...f, lifetime: filterInteger(v)}))}
                     keyboardType="numeric"
                     placeholderTextColor="#64748b"
                   />
@@ -689,7 +718,7 @@ export function CandidatesPage({
                   <TextInput
                     style={styles.formInput}
                     value={genForm.startYear}
-                    onChangeText={v => setGenForm(f => ({...f, startYear: v}))}
+                    onChangeText={v => setGenForm(f => ({...f, startYear: filterInteger(v)}))}
                     keyboardType="numeric"
                     placeholderTextColor="#64748b"
                   />
@@ -699,7 +728,7 @@ export function CandidatesPage({
                   <TextInput
                     style={styles.formInput}
                     value={genForm.endYear}
-                    onChangeText={v => setGenForm(f => ({...f, endYear: v}))}
+                    onChangeText={v => setGenForm(f => ({...f, endYear: filterInteger(v)}))}
                     keyboardType="numeric"
                     placeholderTextColor="#64748b"
                   />
@@ -711,7 +740,7 @@ export function CandidatesPage({
                   <TextInput
                     style={styles.formInput}
                     value={genForm.maxAdditionsPerYear}
-                    onChangeText={v => setGenForm(f => ({...f, maxAdditionsPerYear: v}))}
+                    onChangeText={v => setGenForm(f => ({...f, maxAdditionsPerYear: filterInteger(v)}))}
                     keyboardType="numeric"
                     placeholder="-"
                     placeholderTextColor="#64748b"
@@ -722,7 +751,7 @@ export function CandidatesPage({
                   <TextInput
                     style={styles.formInput}
                     value={genForm.maxAdditionsOverall}
-                    onChangeText={v => setGenForm(f => ({...f, maxAdditionsOverall: v}))}
+                    onChangeText={v => setGenForm(f => ({...f, maxAdditionsOverall: filterInteger(v)}))}
                     keyboardType="numeric"
                     placeholder="-"
                     placeholderTextColor="#64748b"
@@ -817,7 +846,7 @@ export function CandidatesPage({
                   <TextInput
                     style={styles.formInput}
                     value={transForm.capacityLimitIn}
-                    onChangeText={v => setTransForm(f => ({...f, capacityLimitIn: v}))}
+                    onChangeText={v => setTransForm(f => ({...f, capacityLimitIn: filterDecimal(v)}))}
                     keyboardType="numeric"
                     placeholderTextColor="#64748b"
                   />
@@ -827,7 +856,7 @@ export function CandidatesPage({
                   <TextInput
                     style={styles.formInput}
                     value={transForm.capacityLimitOut}
-                    onChangeText={v => setTransForm(f => ({...f, capacityLimitOut: v}))}
+                    onChangeText={v => setTransForm(f => ({...f, capacityLimitOut: filterDecimal(v)}))}
                     keyboardType="numeric"
                     placeholderTextColor="#64748b"
                   />
@@ -839,7 +868,7 @@ export function CandidatesPage({
                   <TextInput
                     style={styles.formInput}
                     value={transForm.cost}
-                    onChangeText={v => setTransForm(f => ({...f, cost: v}))}
+                    onChangeText={v => setTransForm(f => ({...f, cost: filterDecimal(v)}))}
                     keyboardType="numeric"
                     placeholderTextColor="#64748b"
                   />
@@ -849,7 +878,7 @@ export function CandidatesPage({
                   <TextInput
                     style={styles.formInput}
                     value={transForm.inflation}
-                    onChangeText={v => setTransForm(f => ({...f, inflation: v}))}
+                    onChangeText={v => setTransForm(f => ({...f, inflation: filterDecimal(v)}))}
                     keyboardType="numeric"
                     placeholderTextColor="#64748b"
                   />
@@ -861,7 +890,7 @@ export function CandidatesPage({
                   <TextInput
                     style={styles.formInput}
                     value={transForm.startYear}
-                    onChangeText={v => setTransForm(f => ({...f, startYear: v}))}
+                    onChangeText={v => setTransForm(f => ({...f, startYear: filterInteger(v)}))}
                     keyboardType="numeric"
                     placeholderTextColor="#64748b"
                   />
@@ -871,7 +900,7 @@ export function CandidatesPage({
                   <TextInput
                     style={styles.formInput}
                     value={transForm.endYear}
-                    onChangeText={v => setTransForm(f => ({...f, endYear: v}))}
+                    onChangeText={v => setTransForm(f => ({...f, endYear: filterInteger(v)}))}
                     keyboardType="numeric"
                     placeholderTextColor="#64748b"
                   />
@@ -883,7 +912,7 @@ export function CandidatesPage({
                   <TextInput
                     style={styles.formInput}
                     value={transForm.maxAdditionsPerYear}
-                    onChangeText={v => setTransForm(f => ({...f, maxAdditionsPerYear: v}))}
+                    onChangeText={v => setTransForm(f => ({...f, maxAdditionsPerYear: filterInteger(v)}))}
                     keyboardType="numeric"
                     placeholder="-"
                     placeholderTextColor="#64748b"
@@ -894,7 +923,7 @@ export function CandidatesPage({
                   <TextInput
                     style={styles.formInput}
                     value={transForm.maxAdditionsOverall}
-                    onChangeText={v => setTransForm(f => ({...f, maxAdditionsOverall: v}))}
+                    onChangeText={v => setTransForm(f => ({...f, maxAdditionsOverall: filterInteger(v)}))}
                     keyboardType="numeric"
                     placeholder="-"
                     placeholderTextColor="#64748b"
@@ -923,6 +952,42 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#1e293b',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: 16,
+    marginBottom: 16,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#0891b2',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerIcon: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#f8fafc',
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#f8fafc',
+    letterSpacing: 1,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: '#94a3b8',
+    marginTop: 4,
   },
   scrollView: {
     flex: 1,

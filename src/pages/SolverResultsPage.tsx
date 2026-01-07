@@ -168,9 +168,11 @@ export function SolverResultsPage({
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={styles.headerIndicator} />
+          <View style={styles.headerIconContainer}>
+            <Text style={styles.headerIcon}>∑</Text>
+          </View>
           <View>
-            <Text style={styles.headerTitle}>Solver Results Analysis</Text>
+            <Text style={styles.headerTitle}>SOLVER RESULTS ANALYSIS</Text>
             <Text style={styles.headerSubtitle}>
               {solverResults.length === 0
                 ? 'No results available'
@@ -372,24 +374,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   headerLeft: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: 12,
   },
-  headerIndicator: {
-    width: 4,
-    height: 20,
-    backgroundColor: colors.indicatorGreen,
-    borderRadius: 2,
-    marginTop: 2,
+  headerIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#7c3aed',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerIcon: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: '700',
     color: colors.text,
+    letterSpacing: 1,
   },
   headerSubtitle: {
     fontSize: 14,

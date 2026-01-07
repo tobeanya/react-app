@@ -7,9 +7,9 @@
   IgnorableNamespaces="uap rescap">
 
   <Identity
-    Name="ReactApp"
+    Name="ExpansionPlanning"
     Publisher="CN=PowerGEM"
-    Version="1.0.0.1" />
+    Version="1.0.0.2" />
 
   <Properties>
     <DisplayName>Expansion Planning</DisplayName>

@@ -9,6 +9,7 @@ import {SolverResultsPage} from '../pages/SolverResultsPage';
 import {NPVResultsPage} from '../pages/NPVResultsPage';
 import {UnitAdditionResultsPage} from '../pages/UnitAdditionResultsPage';
 import {UnitRetirementResultsPage} from '../pages/UnitRetirementResultsPage';
+import {ExpansionPlanResultsPage} from '../pages/ExpansionPlanResultsPage';
 import {PlanHeader} from '../components/PlanHeader';
 import {
   ExpansionPlan,
@@ -23,7 +24,7 @@ import {
   SAMPLE_STUDIES,
 } from '../types';
 
-type TabName = 'Home' | 'Settings' | 'Candidates' | 'Run' | 'Status' | 'Results' | 'NPV Results' | 'Additions' | 'Retirements';
+type TabName = 'Home' | 'Settings' | 'Candidates' | 'Run' | 'Execution Log' | 'Results Table' | 'NPV Results Table' | 'Additions' | 'Retirements' | 'EP Results';
 
 // Configuration for which tabs show the PlanHeader
 // Set to true to show header on that tab, false to hide
@@ -32,11 +33,12 @@ const TAB_HEADER_CONFIG: Record<TabName, boolean> = {
   'Settings': true,
   'Candidates': true,
   'Run': true,
-  'Status': true,
-  'Results': true,
-  'NPV Results': true,
+  'Execution Log': true,
+  'Results Table': true,
+  'NPV Results Table': true,
   'Additions': true,
   'Retirements': true,
+  'EP Results': true,
 };
 
 interface Props {
@@ -99,6 +101,7 @@ export function TopTabNavigator({
   onModalVisibleChange,
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabName>('Home');
+  const [showDetailedResults, setShowDetailedResults] = useState(false);
   const selectedPlan = expansionPlans.find(p => p.id === selectedPlanId) ?? null;
 
   // Get solver status for the selected plan (defaults to 'inactive')
@@ -113,7 +116,16 @@ export function TopTabNavigator({
     return study?.regions || [];
   };
 
-  const tabs: TabName[] = ['Home', 'Settings', 'Candidates', 'Run', 'Status', 'Results', 'NPV Results', 'Additions', 'Retirements'];
+  // All tabs in order, with Results Table and NPV Results Table conditionally shown
+  const allTabs: TabName[] = ['Home', 'Settings', 'Candidates', 'Run', 'Execution Log', 'EP Results', 'Results Table', 'NPV Results Table', 'Additions', 'Retirements'];
+
+  // Filter tabs based on visibility state
+  const tabs = allTabs.filter(tab => {
+    if (tab === 'Results Table' || tab === 'NPV Results Table') {
+      return showDetailedResults;
+    }
+    return true;
+  });
 
   return (
     <View style={styles.container}>
@@ -202,20 +214,20 @@ export function TopTabNavigator({
             onModalVisibleChange={onModalVisibleChange}
           />
         )}
-        {activeTab === 'Status' && (
+        {activeTab === 'Execution Log' && (
           <SolverStatusPage
             solverLogs={solverLogs}
             solverStatus={selectedPlanStatus}
             onModalVisibleChange={onModalVisibleChange}
           />
         )}
-        {activeTab === 'Results' && (
+        {activeTab === 'Results Table' && (
           <SolverResultsPage
             solverResults={solverResults}
             onModalVisibleChange={onModalVisibleChange}
           />
         )}
-        {activeTab === 'NPV Results' && (
+        {activeTab === 'NPV Results Table' && (
           <NPVResultsPage
             npvResults={npvResults}
             onModalVisibleChange={onModalVisibleChange}
@@ -235,6 +247,13 @@ export function TopTabNavigator({
             onModalVisibleChange={onModalVisibleChange}
             planningHorizonStart={selectedPlan?.planningHorizonStart ?? 2026}
             planningHorizonEnd={selectedPlan?.planningHorizonEnd ?? 2030}
+          />
+        )}
+        {activeTab === 'EP Results' && (
+          <ExpansionPlanResultsPage
+            onModalVisibleChange={onModalVisibleChange}
+            showDetailedResults={showDetailedResults}
+            onToggleDetailedResults={() => setShowDetailedResults(!showDetailedResults)}
           />
         )}
       </View>

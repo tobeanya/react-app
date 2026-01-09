@@ -26,13 +26,13 @@ const COLUMNS = [
   {key: 'namePlate', label: 'Name Plate (MW)', width: 110},
   {key: 'energyMargin', label: 'Energy Margin ($/MW)', width: 130},
   {key: 'npvEnergyMargin', label: 'NPV Energy Margin ($/MW)', width: 150},
-  {key: 'availableMW', label: 'Available MW in EUE Hours', width: 150},
-  {key: 'npvAvgAvailableMW', label: 'NPV Avg Available MW', width: 140},
+  {key: 'availableMwInEueHours', label: 'Available MW in EUE Hours', width: 150},
+  {key: 'npvAvgAvailableMwInEueHours', label: 'NPV Avg Available MW', width: 140},
   {key: 'fixedCost', label: 'Fixed Cost ($/MW)', width: 120},
   {key: 'fixedCarryingCost', label: 'Fixed Carrying Cost', width: 130},
-  {key: 'fixedOMCost', label: 'Fixed OM Cost', width: 110},
-  {key: 'totalNPVFixedCost', label: 'Total NPV Fixed Cost', width: 140},
-  {key: 'totalNPVFixedCostMinusMargin', label: 'NPV Fixed Cost - Margin', width: 160},
+  {key: 'fixedOmCost', label: 'Fixed OM Cost', width: 110},
+  {key: 'totalNpvFixedCost', label: 'Total NPV Fixed Cost', width: 140},
+  {key: 'totalNpvFixedCostMinusNpvEnergyMargin', label: 'NPV Fixed Cost - Margin', width: 160},
   {key: 'loleCapacity', label: 'LOLE Capacity', width: 110},
   {key: 'eueCap', label: 'EUE Cap (MW)', width: 100},
   {key: 'lolhCap', label: 'LOLH Cap (Hours)', width: 120},
@@ -151,13 +151,13 @@ export function SolverResultsPage({
     if (['energyMargin', 'npvEnergyMargin'].includes(key)) {
       return styles.cellTextGreen;
     }
-    if (['fixedCost', 'fixedCarryingCost', 'fixedOMCost'].includes(key)) {
+    if (['fixedCost', 'fixedCarryingCost', 'fixedOmCost'].includes(key)) {
       return styles.cellTextYellow;
     }
-    if (['totalNPVFixedCost'].includes(key)) {
+    if (['totalNpvFixedCost'].includes(key)) {
       return styles.cellTextBlue;
     }
-    if (['totalNPVFixedCostMinusMargin'].includes(key)) {
+    if (['totalNpvFixedCostMinusNpvEnergyMargin'].includes(key)) {
       return styles.cellTextPurple;
     }
     return styles.cellText;

@@ -29,7 +29,7 @@ interface SortConfig {
 // Column definitions
 const COLUMNS: {key: keyof RunCase; label: string; width: number}[] = [
   {key: 'expansionPlanName', label: 'EXPANSION PLAN', width: 180},
-  {key: 'study', label: 'STUDY', width: 280},
+  {key: 'study', label: 'SOURCE STUDY', width: 280},
   {key: 'region', label: 'REGION', width: 80},
   {key: 'status', label: 'STATUS', width: 100},
   {key: 'cycle', label: 'CYCLE', width: 70},
@@ -153,8 +153,7 @@ export function RunPage({
 
   const renderResizeHandle = (column: string) => (
     <View
-      // @ts-ignore - cursor is supported on Windows
-      style={[styles.resizeHandle, {cursor: 'col-resize'}]}
+      style={[styles.resizeHandle, resizing?.column === column && styles.resizeHandleActive]}
       onStartShouldSetResponder={() => true}
       onMoveShouldSetResponder={() => true}
       onResponderTerminationRequest={() => false}
@@ -289,9 +288,9 @@ export function RunPage({
                 )}
               </View>
 
-              {/* Study (Read-only) */}
+              {/* Source Study (Read-only) */}
               <View style={styles.configItem}>
-                <Text style={styles.configLabel}>STUDY</Text>
+                <Text style={styles.configLabel}>SOURCE STUDY</Text>
                 <View style={styles.readOnlyField}>
                   <Text style={styles.readOnlyText} numberOfLines={1}>
                     {selectedPlan?.sourceStudyId
@@ -399,13 +398,13 @@ export function RunPage({
         {/* Status Info Bar */}
         <View style={styles.statusBar}>
           <View style={styles.statusBarItem}>
-            <Text style={styles.statusBarLabel}>Status: </Text>
+            <Text style={styles.statusBarLabel}>Status:</Text>
             <Text style={[styles.statusBarValue, {color: getSolverStatusColor()}]}>
               {getSolverStatusText()}
             </Text>
           </View>
           <View style={styles.statusBarItem}>
-            <Text style={styles.statusBarLabel}>Cycle: </Text>
+            <Text style={styles.statusBarLabel}>Cycle:</Text>
             <Text style={styles.statusBarCycle}>{currentCycle}</Text>
           </View>
         </View>
@@ -756,6 +755,7 @@ const styles = StyleSheet.create({
   statusBarItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
   statusBarLabel: {
     fontSize: 13,
@@ -806,6 +806,14 @@ const styles = StyleSheet.create({
     zIndex: 10,
     borderRightWidth: 2,
     borderRightColor: 'rgba(59, 130, 246, 0.3)',
+  },
+  resizeHandleHover: {
+    borderRightColor: 'rgba(96, 165, 250, 0.8)',
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+  },
+  resizeHandleActive: {
+    borderRightColor: '#60a5fa',
+    backgroundColor: 'rgba(59, 130, 246, 0.2)',
   },
   tableRow: {
     flexDirection: 'row',

@@ -133,43 +133,52 @@ export function PlanHeader({
 
         <View style={styles.divider} />
 
-        {/* Source Study */}
-        <View style={styles.infoSection}>
-          <Text style={styles.infoLabel}>Study:</Text>
-          <Text style={styles.infoText} numberOfLines={1}>
-            {studyName}
-          </Text>
-        </View>
+        <View style={styles.middleContent}>
+          {/* Source Study */}
+          <View style={styles.infoSection}>
+            <Text style={styles.infoLabel}>Source Study:</Text>
+            <Text style={styles.infoText} numberOfLines={1}>
+              {studyName}
+            </Text>
+          </View>
 
-        <View style={styles.divider} />
+          <View style={styles.divider} />
 
-        {/* Region Badge */}
-        <View style={styles.regionBadge}>
-          <Text style={styles.regionText}>{selectedPlan.region}</Text>
-        </View>
+          {/* Region */}
+          <View style={styles.infoSection}>
+            <Text style={styles.infoLabel}>Assessment Region:</Text>
+            <View style={styles.regionBadge}>
+              <Text style={styles.regionText}>{selectedPlan.region}</Text>
+            </View>
+          </View>
 
-        <View style={styles.divider} />
+          <View style={styles.divider} />
 
-        {/* Planning Horizon */}
-        <Text style={styles.horizonText}>
-          {selectedPlan.planningHorizonStart}-{selectedPlan.planningHorizonEnd}
-        </Text>
+          {/* Planning Horizon */}
+          <View style={styles.infoSection}>
+            <Text style={styles.infoLabel}>Planning Horizon:</Text>
+            <Text style={styles.horizonText}>
+              {selectedPlan.planningHorizonStart}-{selectedPlan.planningHorizonEnd}
+            </Text>
+          </View>
 
-        <View style={styles.divider} />
+          <View style={styles.divider} />
 
-        {/* Solver Status */}
-        <View style={styles.statusContainer}>
-          <View
-            style={[
-              styles.statusDot,
-              statusConfig.dotStyle,
-              {backgroundColor: statusConfig.dotStyle === styles.statusDotFilled ? statusConfig.color : 'transparent'},
-              statusConfig.dotStyle === styles.statusDotEmpty && {borderColor: statusConfig.color},
-            ]}
-          />
-          <Text style={[styles.statusText, {color: statusConfig.color}]}>
-            {statusConfig.label}
-          </Text>
+          {/* Solver Status */}
+          <View style={styles.statusContainer}>
+            <Text style={styles.infoLabel}>Status:</Text>
+            <View
+              style={[
+                styles.statusDot,
+                statusConfig.dotStyle,
+                {backgroundColor: statusConfig.dotStyle === styles.statusDotFilled ? statusConfig.color : 'transparent'},
+                statusConfig.dotStyle === styles.statusDotEmpty && {borderColor: statusConfig.color},
+              ]}
+            />
+            <Text style={[styles.statusText, {color: statusConfig.color}]}>
+              {statusConfig.label}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -226,6 +235,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: 12,
   },
+  middleContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    overflow: 'hidden',
+  },
   planSelector: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -258,7 +274,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    maxWidth: 280,
+    flexShrink: 0,
   },
   infoLabel: {
     color: colors.textTertiary,

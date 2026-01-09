@@ -8,7 +8,8 @@ The recommended method for distributing to non-technical users is a **signed MSI
 
 ## Step 1: Create a Signing Certificate
 
-A certificate is required to prove the application came from you. For professional distribution, you should purchase one from a trusted Certificate Authority (CA). For internal testing or free distribution, you can create your own "self-signed" certificate.
+A certificate is required to prove the application came from you. For professional distribution, you should purchase one from a trusted Certificate Authority (CA). 
+For internal testing or free distribution, you can create your own "self-signed" certificate.
 
 **Action: Create a Self-Signed Certificate**
 
@@ -96,7 +97,7 @@ This is the final step where you package the `AppX` folder into a single `.msix`
 
     ```powershell
     # --- Packaging Details ---
-    $packageVersion = "1.0.0.2" # Change this to match your app version
+    $packageVersion = "1.0.0.3" # Change this to match your app version
     $certFileName = "ReactApp_SigningCert" # Must match the name from Step 1
     $certPassword = "YourSecurePassword" # Must match the password from Step 1
 
@@ -132,7 +133,8 @@ This is the final step where you package the `AppX` folder into a single `.msix`
 
 ## Step 5: Create a Distribution Bundle with Dependencies (Recommended)
 
-To avoid errors and provide a seamless experience, you should bundle all runtimes with your app. This new process creates a folder with a user-friendly batch file (`.bat`) that automatically handles administrative rights and PowerShell security policies.
+To avoid errors and provide a seamless experience, you should bundle all runtimes with your app. 
+This new process creates a folder with a user-friendly batch file (`.bat`) that automatically handles administrative rights and PowerShell security policies.
 
 ### 5.1: Create the Distribution Folder Structure
 

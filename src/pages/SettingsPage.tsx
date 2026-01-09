@@ -453,21 +453,10 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
           <View style={styles.sectionContent}>
             <View style={styles.row}>
               <View style={styles.col}>
-                <SelectField
-                  label="EXPANSION PLAN"
-                  value={selectedPlan.name}
-                  onPress={(e) => openDropdown(
-                    'Select Expansion Plan',
-                    expansionPlans.map(p => p.id),
-                    selectedPlan.id,
-                    (id) => {
-                      onSelectPlan(id);
-                      closeDropdown();
-                    },
-                    (id) => expansionPlans.find(p => p.id === id)?.name || id,
-                    e
-                  )}
-                />
+                <Text style={styles.label}>EXPANSION PLAN</Text>
+                <View style={styles.planNameDisplay}>
+                  <Text style={styles.planNameText}>{selectedPlan.name}</Text>
+                </View>
               </View>
               <View style={styles.colSmall}>
                 <Text style={styles.label}>PLANNING HORIZON</Text>
@@ -486,7 +475,7 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
                 </View>
               </View>
             </View>
-            <View style={styles.row}>
+            <View style={[styles.row, {marginTop: 16, gap: 32}]}>
               <View style={styles.col}>
                 <SelectField
                   label="SOURCE STUDY"
@@ -521,7 +510,7 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
               </View>
               <View style={styles.col}>
                 <SelectField
-                  label="REGION"
+                  label="ASSESSMENT REGION"
                   value={region}
                   disabled={!sourceStudyId}
                   displayValue={sourceStudyId ? region : 'Select a source study first'}
@@ -779,8 +768,8 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
                   <Text style={[styles.tableHeaderCell, {width: 30}]}></Text>
                   <Text style={[styles.tableHeaderCell, {flex: 2}]}>CONSTRAINT VARIABLE</Text>
                   <Text style={styles.tableHeaderCell}>YEAR</Text>
-                  <Text style={styles.tableHeaderCell}>LIMIT</Text>
-                  <Text style={[styles.tableHeaderCell, {flex: 1.5}]}>THRESHOLD (%)</Text>
+                  <Text style={styles.tableHeaderCell}>VALUE</Text>
+                  <Text style={[styles.tableHeaderCell, {flex: 1.5}]}>EXCEEDANCE THRESHOLD (%)</Text>
                   <Text style={styles.tableHeaderCell}>PRIORITY</Text>
                 </View>
                 {settings.constraints.length === 0 ? (
@@ -801,7 +790,7 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
                       <Text style={[styles.tableCell, {flex: 2}]}>{c.variable}</Text>
                       <Text style={styles.tableCell}>{c.year}</Text>
                       <Text style={styles.tableCell}>{c.limit}</Text>
-                      <Text style={[styles.tableCell, {flex: 1.5}]}>{c.exceedanceThreshold}</Text>
+                      <Text style={[styles.tableCell, {flex: 1.5}]}>{c.exceedanceThreshold === '0' ? 'N/A' : c.exceedanceThreshold}</Text>
                       <Text style={styles.tableCell}>{c.priority}</Text>
                     </TouchableOpacity>
                   ))
@@ -946,7 +935,7 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
                   />
                 </View>
                 <View style={styles.constraintFormFieldHalf}>
-                  <Text style={styles.constraintFormLabel}>LIMIT</Text>
+                  <Text style={styles.constraintFormLabel}>VALUE</Text>
                   <TextInput
                     style={styles.constraintFormInput}
                     value={constraintForm.limit}
@@ -954,15 +943,17 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
                   />
                 </View>
               </View>
-              <View style={styles.constraintFormField}>
-                <Text style={styles.constraintFormLabel}>EXCEEDANCE THRESHOLD (%)</Text>
-                <TextInput
-                  style={styles.constraintFormInput}
-                  value={constraintForm.exceedanceThreshold}
-                  onChangeText={(v) => setConstraintForm(prev => ({...prev, exceedanceThreshold: v}))}
-                  keyboardType="numeric"
-                />
-              </View>
+              {(constraintForm.variable === 'EUE Depth' || constraintForm.variable === 'Max EUE Duration') && (
+                <View style={styles.constraintFormField}>
+                  <Text style={styles.constraintFormLabel}>EXCEEDANCE THRESHOLD (%)</Text>
+                  <TextInput
+                    style={styles.constraintFormInput}
+                    value={constraintForm.exceedanceThreshold}
+                    onChangeText={(v) => setConstraintForm(prev => ({...prev, exceedanceThreshold: v}))}
+                    keyboardType="numeric"
+                  />
+                </View>
+              )}
               <Text style={styles.constraintPriorityNote}>
                 Priority will be automatically assigned: {settings.constraints.length + 1}
               </Text>
@@ -1311,6 +1302,17 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     marginBottom: 4,
     textTransform: 'uppercase',
+  },
+  planNameDisplay: {
+    borderWidth: 1,
+    borderColor: 'rgba(71, 85, 105, 0.5)',
+    borderRadius: 4,
+    padding: 10,
+    backgroundColor: 'rgba(30, 41, 59, 0.5)',
+  },
+  planNameText: {
+    fontSize: 14,
+    color: colors.textSecondary,
   },
   runButtonText: {
     color: colors.text,

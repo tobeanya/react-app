@@ -38,7 +38,13 @@
       "Bash(powershell.exe -Command \"Get-AppxPackage -Name ''*React*''\")",
       "Bash(powershell.exe -Command \"Get-AppxPackage -Name ''*Expansion*''\")",
       "Bash(explorer.exe \"shell:AppsFolder\\\\ReactApp_vzcs5w9rwmp40!App\")",
-      "Bash(powershell.exe -Command \"Get-StartApps | Where-Object { $_.Name -like ''*Expansion*'' -or $_.Name -like ''*React*'' }\")"
+      "Bash(powershell.exe -Command \"Get-StartApps | Where-Object { $_.Name -like ''*Expansion*'' -or $_.Name -like ''*React*'' }\")",
+      "Bash(cat:*)",
+      "Bash(node:*)",
+      "Bash(timeout:*)",
+      "Bash(ping:*)",
+      "Bash(copy \"C:\\\\Users\\\\tobet\\\\Downloads\\\\ExpansionPlanResults.jsx\" \"C:\\\\Users\\\\tobet\\\\Projects\\\\react-app\\\\src\\\\pages\\\\ExpansionPlanResultsPage.tsx\")",
+      "Bash(cmd /c copy \"C:\\\\Users\\\\tobet\\\\Downloads\\\\ExpansionPlanResults.jsx\" \"C:\\\\Users\\\\tobet\\\\Projects\\\\react-app\\\\src\\\\pages\\\\ExpansionPlanResultsPage.tsx\")"
     ]
   }
 }

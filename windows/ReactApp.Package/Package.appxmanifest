@@ -9,7 +9,7 @@
   <Identity
     Name="ExpansionPlanning"
     Publisher="CN=PowerGEM"
-    Version="1.0.0.3" />
+    Version="1.0.0.4" />
 
   <Properties>
     <DisplayName>Expansion Planning</DisplayName>

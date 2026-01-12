@@ -92,3 +92,5 @@ nul
 *.msixbundle
 *-Release-*/
 *-Installer-*
+
+.vs/

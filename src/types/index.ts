@@ -1,4 +1,4 @@
-export type Region = 'ERCOT' | 'SPP' | 'MISO' | 'PJM';
+export type Region = 'ERCOT' | 'SPP' | 'MISO' | 'PJM' | 'Mexico';
 export type SolverType = 'Simple' | 'Normal';
 export type SolutionCriterion = 'Total System Cost Savings' | 'Highest Unit Energy Margin';
 export type WeatherYearSelection = 'All' | 'Median' | 'Peak';
@@ -15,6 +15,42 @@ export interface Study {
   dateCreated: string;
   dateModified: string;
   regions: Region[];
+}
+
+// Unit - represents a generation unit in the system
+export interface Unit {
+  unitId: number;
+  unitName: string;
+  unitDescription: string;
+  originalCapMax: number; // MW
+  guiCapMax: number; // MW
+  guiCapMin: number; // MW
+  startDate: number;
+  endDate: number;
+  guiEfor: number; // Equivalent Forced Outage Rate
+  unitType: string;
+  year: number;
+  regionId: number;
+  regionDescription: string;
+  unitActive: boolean;
+  debugSelected: boolean;
+  unitCategoryDescription: string;
+  unitCategoryId: number;
+  startMonth: number; // 0-11
+  endMonth: number; // 0-11
+  insvdt: string; // In-service date
+  retirementDate: string;
+  handlingCost: number; // $/kW-yr
+  fixedCarryingCost: number; // $/kW-yr
+  fixedCost: number; // $/kW-yr
+  fixedOm: number; // $/kW-yr
+  startupCost: number; // $/start
+  hotStartupCost: number; // $/start
+  coldStartupCost: number; // $/start
+  warmStartupCost: number; // $/start
+  vomPerMwh: number; // $/MWh
+  vomPerHour: number; // $/hour
+  fuel: number; // Fuel type ID
 }
 
 export interface Constraint {
@@ -233,7 +269,7 @@ export interface RunCase {
 
 export const TECHNOLOGY_TYPES: TechnologyType[] = ['Combined Cycle', 'Solar PV', 'Wind', 'Battery', 'Gas Turbine', 'Nuclear'];
 
-export const REGIONS: Region[] = ['ERCOT', 'SPP', 'MISO', 'PJM'];
+export const REGIONS: Region[] = ['ERCOT', 'SPP', 'MISO', 'PJM', 'Mexico'];
 export const MONTHS: Month[] = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const SOLVER_TYPES: SolverType[] = ['Simple', 'Normal'];
 export const SOLUTION_CRITERIA: SolutionCriterion[] = ['Total System Cost Savings', 'Highest Unit Energy Margin'];
@@ -327,6 +363,223 @@ export const SAMPLE_STUDIES: Study[] = [
     dateCreated: '2024-01-05T07:00:00Z',
     dateModified: '2024-12-28T09:15:00Z',
     regions: ['ERCOT', 'SPP', 'MISO', 'PJM'],
+  },
+  {
+    id: 'study-6',
+    name: 'SPP_Mexico_Scenario',
+    startYear: 2030,
+    endYear: 2035,
+    dateCreated: '2025-01-10T14:00:00Z',
+    dateModified: '2026-01-12T09:30:00Z',
+    regions: ['SPP', 'Mexico'],
+  },
+];
+
+// Sample units for testing
+export const SAMPLE_UNITS: Unit[] = [
+  {
+    unitId: 1,
+    unitName: 'Adv CC',
+    unitDescription: 'Advanced Combined Cycle Gas Turbine',
+    originalCapMax: 1083,
+    guiCapMax: 1083,
+    guiCapMin: 325,
+    startDate: 2025,
+    endDate: 2065,
+    guiEfor: 0.05,
+    unitType: 'Combined Cycle',
+    year: 2025,
+    regionId: 1,
+    regionDescription: 'SPP',
+    unitActive: true,
+    debugSelected: false,
+    unitCategoryDescription: 'Natural Gas',
+    unitCategoryId: 1,
+    startMonth: 0,
+    endMonth: 11,
+    insvdt: '2025-01-01',
+    retirementDate: '2065-12-31',
+    handlingCost: 0,
+    fixedCarryingCost: 200000,
+    fixedCost: 0,
+    fixedOm: 22514.96,
+    startupCost: 85000,
+    hotStartupCost: 45000,
+    coldStartupCost: 125000,
+    warmStartupCost: 85000,
+    vomPerMwh: 2.68,
+    vomPerHour: 0,
+    fuel: 1,
+  },
+  {
+    unitId: 2,
+    unitName: 'Adv CT',
+    unitDescription: 'Advanced Combustion Turbine',
+    originalCapMax: 237,
+    guiCapMax: 237,
+    guiCapMin: 95,
+    startDate: 2025,
+    endDate: 2060,
+    guiEfor: 0.06,
+    unitType: 'Combustion Turbine',
+    year: 2025,
+    regionId: 1,
+    regionDescription: 'SPP',
+    unitActive: true,
+    debugSelected: false,
+    unitCategoryDescription: 'Natural Gas',
+    unitCategoryId: 1,
+    startMonth: 0,
+    endMonth: 11,
+    insvdt: '2025-01-01',
+    retirementDate: '2060-12-31',
+    handlingCost: 0,
+    fixedCarryingCost: 150000,
+    fixedCost: 0,
+    fixedOm: 12410,
+    startupCost: 25000,
+    hotStartupCost: 15000,
+    coldStartupCost: 35000,
+    warmStartupCost: 25000,
+    vomPerMwh: 4.5,
+    vomPerHour: 0,
+    fuel: 1,
+  },
+  {
+    unitId: 3,
+    unitName: 'Battery 4HR',
+    unitDescription: '4-Hour Lithium-Ion Battery Storage',
+    originalCapMax: 200,
+    guiCapMax: 200,
+    guiCapMin: 0,
+    startDate: 2025,
+    endDate: 2045,
+    guiEfor: 0.02,
+    unitType: 'Battery Storage',
+    year: 2025,
+    regionId: 1,
+    regionDescription: 'SPP',
+    unitActive: true,
+    debugSelected: false,
+    unitCategoryDescription: 'Energy Storage',
+    unitCategoryId: 5,
+    startMonth: 0,
+    endMonth: 11,
+    insvdt: '2025-01-01',
+    retirementDate: '2045-12-31',
+    handlingCost: 0,
+    fixedCarryingCost: 180200,
+    fixedCost: 0,
+    fixedOm: 22500,
+    startupCost: 100,
+    hotStartupCost: 100,
+    coldStartupCost: 100,
+    warmStartupCost: 100,
+    vomPerMwh: 0.5,
+    vomPerHour: 0,
+    fuel: 0,
+  },
+  {
+    unitId: 4,
+    unitName: 'Battery + Solar',
+    unitDescription: 'Hybrid Battery Storage with Solar PV',
+    originalCapMax: 350,
+    guiCapMax: 350,
+    guiCapMin: 0,
+    startDate: 2025,
+    endDate: 2050,
+    guiEfor: 0.03,
+    unitType: 'Hybrid Solar+Storage',
+    year: 2025,
+    regionId: 1,
+    regionDescription: 'SPP',
+    unitActive: true,
+    debugSelected: false,
+    unitCategoryDescription: 'Renewable Hybrid',
+    unitCategoryId: 6,
+    startMonth: 0,
+    endMonth: 11,
+    insvdt: '2025-01-01',
+    retirementDate: '2050-12-31',
+    handlingCost: 0,
+    fixedCarryingCost: 245800,
+    fixedCost: 0,
+    fixedOm: 35200,
+    startupCost: 50,
+    hotStartupCost: 50,
+    coldStartupCost: 50,
+    warmStartupCost: 50,
+    vomPerMwh: 0,
+    vomPerHour: 0,
+    fuel: 0,
+  },
+  {
+    unitId: 5,
+    unitName: 'Solar W',
+    unitDescription: 'Utility-Scale Solar PV (West)',
+    originalCapMax: 250,
+    guiCapMax: 250,
+    guiCapMin: 0,
+    startDate: 2025,
+    endDate: 2055,
+    guiEfor: 0.02,
+    unitType: 'Solar PV',
+    year: 2025,
+    regionId: 1,
+    regionDescription: 'SPP',
+    unitActive: true,
+    debugSelected: false,
+    unitCategoryDescription: 'Solar',
+    unitCategoryId: 3,
+    startMonth: 0,
+    endMonth: 11,
+    insvdt: '2025-01-01',
+    retirementDate: '2055-12-31',
+    handlingCost: 0,
+    fixedCarryingCost: 165500,
+    fixedCost: 0,
+    fixedOm: 18500,
+    startupCost: 0,
+    hotStartupCost: 0,
+    coldStartupCost: 0,
+    warmStartupCost: 0,
+    vomPerMwh: 0,
+    vomPerHour: 0,
+    fuel: 0,
+  },
+  {
+    unitId: 6,
+    unitName: 'Wind W',
+    unitDescription: 'Utility-Scale Wind Farm (West)',
+    originalCapMax: 300,
+    guiCapMax: 300,
+    guiCapMin: 0,
+    startDate: 2025,
+    endDate: 2050,
+    guiEfor: 0.04,
+    unitType: 'Wind',
+    year: 2025,
+    regionId: 1,
+    regionDescription: 'SPP',
+    unitActive: true,
+    debugSelected: false,
+    unitCategoryDescription: 'Wind',
+    unitCategoryId: 4,
+    startMonth: 0,
+    endMonth: 11,
+    insvdt: '2025-01-01',
+    retirementDate: '2050-12-31',
+    handlingCost: 0,
+    fixedCarryingCost: 145200,
+    fixedCost: 0,
+    fixedOm: 15800,
+    startupCost: 0,
+    hotStartupCost: 0,
+    coldStartupCost: 0,
+    warmStartupCost: 0,
+    vomPerMwh: 0,
+    vomPerHour: 0,
+    fuel: 0,
   },
 ];
 

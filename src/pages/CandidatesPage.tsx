@@ -16,6 +16,8 @@ import {
   Month,
   MONTHS,
   REGIONS,
+  SAMPLE_UNITS,
+  Unit,
 } from '../types';
 
 interface Props {
@@ -33,9 +35,7 @@ interface Props {
 }
 
 const defaultGenForm = {
-  units: '',
-  capacity: '',
-  fixedCost: '',
+  selectedUnitIds: [] as number[],
   startMonth: 'Jan' as Month,
   startYear: '2026',
   endYear: '2032',
@@ -127,9 +127,25 @@ export function CandidatesPage({
   const [transForm, setTransForm] = useState(defaultTransForm);
 
   // Dropdown state
+  const [showUnitsDropdown, setShowUnitsDropdown] = useState(false);
   const [showMonthDropdown, setShowMonthDropdown] = useState(false);
   const [showRegionADropdown, setShowRegionADropdown] = useState(false);
   const [showRegionBDropdown, setShowRegionBDropdown] = useState(false);
+
+  // Get selected units data
+  const selectedUnits = SAMPLE_UNITS.filter(u => genForm.selectedUnitIds.includes(u.unitId));
+  const totalCapacity = selectedUnits.reduce((sum, u) => sum + u.guiCapMax, 0);
+  const totalFixedCost = selectedUnits.reduce((sum, u) => sum + u.fixedOm, 0);
+
+  // Toggle unit selection
+  const toggleUnitSelection = (unitId: number) => {
+    setGenForm(f => ({
+      ...f,
+      selectedUnitIds: f.selectedUnitIds.includes(unitId)
+        ? f.selectedUnitIds.filter(id => id !== unitId)
+        : [...f.selectedUnitIds, unitId],
+    }));
+  };
 
   const anyModalOpen = showGenModal || showTransModal;
 
@@ -155,6 +171,7 @@ export function CandidatesPage({
     setShowGenModal(false);
     setEditingGen(null);
     setGenForm(defaultGenForm);
+    setShowUnitsDropdown(false);
     onModalVisibleChange(false);
   }, [onModalVisibleChange]);
 
@@ -169,10 +186,50 @@ export function CandidatesPage({
   const handleKeyDown = useCallback((e: any) => {
     const key = e.nativeEvent?.key || e.key;
     if (key === 'Escape') {
-      if (showGenModal) closeGenModal();
-      else if (showTransModal) closeTransModal();
+      // Close dropdowns first, then modals
+      if (showUnitsDropdown) {
+        e.stopPropagation?.();
+        e.preventDefault?.();
+        setShowUnitsDropdown(false);
+        return;
+      }
+      if (showMonthDropdown) {
+        e.stopPropagation?.();
+        e.preventDefault?.();
+        setShowMonthDropdown(false);
+        return;
+      }
+      if (showRegionADropdown) {
+        e.stopPropagation?.();
+        e.preventDefault?.();
+        setShowRegionADropdown(false);
+        return;
+      }
+      if (showRegionBDropdown) {
+        e.stopPropagation?.();
+        e.preventDefault?.();
+        setShowRegionBDropdown(false);
+        return;
+      }
+      // No dropdowns open, close the modal
+      if (showGenModal) {
+        closeGenModal();
+      } else if (showTransModal) {
+        closeTransModal();
+      }
     }
-  }, [showGenModal, showTransModal, closeGenModal, closeTransModal]);
+  }, [showGenModal, showTransModal, closeGenModal, closeTransModal, showUnitsDropdown, showMonthDropdown, showRegionADropdown, showRegionBDropdown]);
+
+  // Close dropdowns when clicking elsewhere in the form
+  const handleGenModalBodyPress = () => {
+    if (showUnitsDropdown) setShowUnitsDropdown(false);
+    if (showMonthDropdown) setShowMonthDropdown(false);
+  };
+
+  const handleTransModalBodyPress = () => {
+    if (showRegionADropdown) setShowRegionADropdown(false);
+    if (showRegionBDropdown) setShowRegionBDropdown(false);
+  };
 
   useEffect(() => {
     if (anyModalOpen && containerRef.current) {
@@ -215,10 +272,12 @@ export function CandidatesPage({
 
   const openEditGenModal = (candidate: GenerationCandidate) => {
     setEditingGen(candidate);
+    // Convert unit names back to unit IDs
+    const unitIds = candidate.units
+      .map(name => SAMPLE_UNITS.find(u => u.unitName === name)?.unitId)
+      .filter((id): id is number => id !== undefined);
     setGenForm({
-      units: candidate.units.join(':'),
-      capacity: candidate.capacity.toString(),
-      fixedCost: candidate.fixedCost.toString(),
+      selectedUnitIds: unitIds,
       startMonth: candidate.startMonth,
       startYear: candidate.startYear.toString(),
       endYear: candidate.endYear.toString(),
@@ -232,13 +291,18 @@ export function CandidatesPage({
   };
 
   const handleSaveGen = () => {
-    if (!selectedPlanId || !genForm.units.trim()) return;
+    if (!selectedPlanId || genForm.selectedUnitIds.length === 0) return;
+
+    // Get unit names from selected IDs
+    const unitNames = genForm.selectedUnitIds
+      .map(id => SAMPLE_UNITS.find(u => u.unitId === id)?.unitName)
+      .filter((name): name is string => name !== undefined);
 
     const candidateData = {
       expansionPlanId: selectedPlanId,
-      units: genForm.units.split(':').map(u => u.trim()).filter(u => u),
-      capacity: parseFloat(genForm.capacity) || 0,
-      fixedCost: parseFloat(genForm.fixedCost) || 0,
+      units: unitNames,
+      capacity: totalCapacity,
+      fixedCost: totalFixedCost,
       startMonth: genForm.startMonth,
       startYear: parseInt(genForm.startYear, 10) || 2026,
       endYear: parseInt(genForm.endYear, 10) || 2032,
@@ -389,7 +453,6 @@ export function CandidatesPage({
       onLayout={onContainerLayout}
       // @ts-ignore
       onKeyDown={anyModalOpen ? handleKeyDown : undefined}
-      onKeyUp={anyModalOpen ? handleKeyDown : undefined}
       focusable={anyModalOpen}>
       {/* Header */}
       <View style={styles.header}>
@@ -644,38 +707,65 @@ export function CandidatesPage({
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.modalBody}>
-              <View style={styles.formField}>
-                <Text style={styles.formLabel}>UNITS (separate multiple with colon)</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={genForm.units}
-                  onChangeText={v => setGenForm(f => ({...f, units: v}))}
-                  placeholder="Unit1:Unit2:Unit3"
-                  placeholderTextColor="#64748b"
-                />
-              </View>
-              <View style={styles.formRow}>
-                <View style={styles.formFieldHalf}>
-                  <Text style={styles.formLabel}>CAPACITY (MW)</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    value={genForm.capacity}
-                    onChangeText={v => setGenForm(f => ({...f, capacity: filterDecimal(v)}))}
-                    keyboardType="numeric"
-                    placeholderTextColor="#64748b"
-                  />
+              <TouchableOpacity activeOpacity={1} onPress={handleGenModalBodyPress}>
+                <View style={styles.formField}>
+                  <Text style={styles.formLabel}>UNITS</Text>
+                  <TouchableOpacity
+                    style={styles.formSelect}
+                    onPress={() => setShowUnitsDropdown(!showUnitsDropdown)}>
+                    <Text style={styles.formSelectText} numberOfLines={1}>
+                      {selectedUnits.length > 0
+                        ? selectedUnits.map(u => u.unitName).join(', ')
+                        : 'Select units...'}
+                    </Text>
+                    <Text style={styles.formSelectArrow}>▼</Text>
+                  </TouchableOpacity>
+                  {showUnitsDropdown && (
+                    <View style={styles.unitsDropdown}>
+                      <ScrollView style={styles.unitsDropdownScroll} nestedScrollEnabled>
+                        {SAMPLE_UNITS.map(unit => (
+                          <TouchableOpacity
+                            key={unit.unitId}
+                            style={styles.unitsDropdownItem}
+                            onPress={() => toggleUnitSelection(unit.unitId)}>
+                            <View style={[
+                              styles.unitCheckbox,
+                              genForm.selectedUnitIds.includes(unit.unitId) && styles.unitCheckboxChecked
+                            ]}>
+                              {genForm.selectedUnitIds.includes(unit.unitId) && (
+                                <Text style={styles.unitCheckmark}>✓</Text>
+                              )}
+                            </View>
+                            <View style={styles.unitInfo}>
+                              <Text style={styles.unitName}>{unit.unitName}</Text>
+                              <Text style={styles.unitDetails}>
+                                {unit.guiCapMax.toLocaleString()} MW | ${unit.fixedOm.toFixed(2)} Fixed O&M
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
                 </View>
-                <View style={styles.formFieldHalf}>
-                  <Text style={styles.formLabel}>FIXED COST ($/kW-yr)</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    value={genForm.fixedCost}
-                    onChangeText={v => setGenForm(f => ({...f, fixedCost: filterDecimal(v)}))}
-                    keyboardType="numeric"
-                    placeholderTextColor="#64748b"
-                  />
+                <View style={styles.formRow}>
+                  <View style={styles.formFieldHalf}>
+                    <Text style={styles.formLabel}>CAPACITY (MW)</Text>
+                    <View style={styles.formInputReadOnly}>
+                      <Text style={styles.formInputReadOnlyText}>
+                        {totalCapacity > 0 ? totalCapacity.toLocaleString() : '—'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.formFieldHalf}>
+                    <Text style={styles.formLabel}>FIXED COST ($/kW-yr)</Text>
+                    <View style={styles.formInputReadOnly}>
+                      <Text style={styles.formInputReadOnlyText}>
+                        {totalFixedCost > 0 ? `$${totalFixedCost.toFixed(2)}` : '—'}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
-              </View>
               <View style={styles.formRow}>
                 <View style={styles.formFieldHalf}>
                   <Text style={styles.formLabel}>START MONTH</Text>
@@ -765,6 +855,7 @@ export function CandidatesPage({
                   onValueChange={v => setGenForm(f => ({...f, isRetirement: v}))}
                 />
               </View>
+              </TouchableOpacity>
             </ScrollView>
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.cancelBtn} onPress={closeGenModal}>
@@ -790,6 +881,7 @@ export function CandidatesPage({
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.modalBody}>
+              <TouchableOpacity activeOpacity={1} onPress={handleTransModalBodyPress}>
               <View style={styles.formRow}>
                 <View style={styles.formFieldHalf}>
                   <Text style={styles.formLabel}>REGION A</Text>
@@ -930,6 +1022,7 @@ export function CandidatesPage({
                   />
                 </View>
               </View>
+              </TouchableOpacity>
             </ScrollView>
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.cancelBtn} onPress={closeTransModal}>
@@ -1330,6 +1423,72 @@ const styles = StyleSheet.create({
   dropdownItemText: {
     fontSize: 14,
     color: colors.text,
+  },
+  unitsDropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: '#1e293b',
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 6,
+    marginTop: 4,
+    zIndex: 100,
+  },
+  unitsDropdownScroll: {
+    maxHeight: 200,
+  },
+  unitsDropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#334155',
+    gap: 10,
+  },
+  unitCheckbox: {
+    width: 18,
+    height: 18,
+    borderWidth: 1,
+    borderColor: '#64748b',
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  unitCheckboxChecked: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  unitCheckmark: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  unitInfo: {
+    flex: 1,
+  },
+  unitName: {
+    fontSize: 14,
+    color: colors.text,
+    fontWeight: '500',
+  },
+  unitDetails: {
+    fontSize: 11,
+    color: colors.textTertiary,
+    marginTop: 2,
+  },
+  formInputReadOnly: {
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 6,
+    padding: 10,
+    backgroundColor: '#0f172a',
+  },
+  formInputReadOnlyText: {
+    fontSize: 14,
+    color: '#94a3b8',
   },
   cancelBtn: {
     paddingVertical: 10,

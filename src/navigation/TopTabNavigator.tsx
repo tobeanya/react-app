@@ -254,6 +254,8 @@ export function TopTabNavigator({
             onModalVisibleChange={onModalVisibleChange}
             showDetailedResults={showDetailedResults}
             onToggleDetailedResults={() => setShowDetailedResults(!showDetailedResults)}
+            planningHorizonStart={selectedPlan?.planningHorizonStart ?? 2035}
+            planningHorizonEnd={selectedPlan?.planningHorizonEnd ?? 2040}
           />
         )}
       </View>

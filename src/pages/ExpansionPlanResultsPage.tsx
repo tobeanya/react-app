@@ -8,12 +8,15 @@ import {
   LayoutChangeEvent,
 } from 'react-native';
 import {EP_DATA} from '../data/expansionPlanResultsData';
+import {EP_DATA_NPV} from '../data/expansionPlanNpvData';
 import {colors} from '../styles/colors';
 
 interface Props {
   onModalVisibleChange?: (visible: boolean) => void;
   showDetailedResults?: boolean;
   onToggleDetailedResults?: () => void;
+  planningHorizonStart?: number;
+  planningHorizonEnd?: number;
 }
 
 type SortDirection = 'asc' | 'desc';
@@ -59,73 +62,174 @@ const formatValue = (val: any): string => {
   return num.toFixed(2).replace(/\.?0+$/, '');
 };
 
+// Calculation basis options
+type CalculationBasis = 'Yearly' | 'NPV';
+const CALCULATION_BASIS_OPTIONS: CalculationBasis[] = ['Yearly', 'NPV'];
+
+// Generate year options from planning horizon
+const generateYearOptions = (start: number, end: number): string[] => {
+  const years: string[] = [];
+  for (let y = start; y <= end; y++) {
+    years.push(String(y));
+  }
+  years.push('All');
+  return years;
+};
+
 export function ExpansionPlanResultsPage({
   showDetailedResults = false,
   onToggleDetailedResults,
+  planningHorizonStart = 2035,
+  planningHorizonEnd = 2040,
 }: Props) {
+  const [calculationBasis, setCalculationBasis] = useState<CalculationBasis>('Yearly');
+  const [selectedYear, setSelectedYear] = useState(String(planningHorizonStart));
   const [selectedMetric, setSelectedMetric] = useState('Added Capacity');
+
+  // Generate year options from planning horizon
+  const yearOptions = useMemo(
+    () => generateYearOptions(planningHorizonStart, planningHorizonEnd),
+    [planningHorizonStart, planningHorizonEnd]
+  );
+
+  // Reset selected year when planning horizon changes
+  useEffect(() => {
+    if (!yearOptions.includes(selectedYear)) {
+      setSelectedYear(yearOptions[0]);
+    }
+  }, [yearOptions, selectedYear]);
   const [sortConfig, setSortConfig] = useState<SortConfig>({key: null, direction: 'asc'});
   const [currentView, setCurrentView] = useState<'table' | 'chart'>('table');
   const [chartType, setChartType] = useState<'bar' | 'line'>('line');
   const [containerWidth, setContainerWidth] = useState(0);
+  const [showCalculationBasisDropdown, setShowCalculationBasisDropdown] = useState(false);
+  const [showYearDropdown, setShowYearDropdown] = useState(false);
   const [showMetricDropdown, setShowMetricDropdown] = useState(false);
 
   const containerRef = useRef<View>(null);
 
-  // Handle Escape key to close dropdown
+  const anyDropdownOpen = showCalculationBasisDropdown || showYearDropdown || showMetricDropdown;
+
+  // Handle Escape key to close dropdowns
   const handleKeyDown = useCallback((e: any) => {
     const key = e.nativeEvent?.key || e.key;
-    if (key === 'Escape' && showMetricDropdown) {
+    if (key === 'Escape') {
+      setShowCalculationBasisDropdown(false);
+      setShowYearDropdown(false);
       setShowMetricDropdown(false);
     }
-  }, [showMetricDropdown]);
+  }, []);
 
-  // Focus container when dropdown opens
+  // Focus container when any dropdown opens
   useEffect(() => {
-    if (showMetricDropdown && containerRef.current) {
+    if (anyDropdownOpen && containerRef.current) {
       // @ts-ignore
       containerRef.current.focus?.();
     }
-  }, [showMetricDropdown]);
+  }, [anyDropdownOpen]);
+
+  // Reset metric when calculation basis changes
+  useEffect(() => {
+    if (calculationBasis === 'NPV') {
+      setSelectedMetric(EP_DATA_NPV.m[0].n);
+    } else {
+      setSelectedMetric('Added Capacity');
+    }
+  }, [calculationBasis]);
+
+  // Get current data source based on calculation basis
+  const currentData = useMemo(() => {
+    return calculationBasis === 'NPV' ? EP_DATA_NPV : EP_DATA;
+  }, [calculationBasis]);
+
+  // Get available metrics based on calculation basis
+  const availableMetrics = useMemo(() => {
+    return currentData.m;
+  }, [currentData]);
 
   const onContainerLayout = (event: LayoutChangeEvent) => {
     setContainerWidth(event.nativeEvent.layout.width);
   };
 
-  const metricInfo = EP_DATA.m.find((x: any) => x.n === selectedMetric);
+  // Find metric info - fall back to first metric if not found (handles transition between Yearly/NPV)
+  const metricInfo = useMemo(() => {
+    const found = currentData.m.find((x: any) => x.n === selectedMetric);
+    return found || currentData.m[0];
+  }, [currentData.m, selectedMetric]);
   const hasBaseline = metricInfo?.b || false;
 
+  // Filter data by selected year (for NPV data)
+  const filteredData = useMemo(() => {
+    const data = currentData.d as any[];
+    if (calculationBasis === 'Yearly') {
+      return data; // Yearly data doesn't have year filtering
+    }
+    if (selectedYear === 'All') {
+      return data; // Return all data when "All" is selected
+    }
+    // Filter by year for NPV data
+    return data.filter((row: any) => row.y === parseInt(selectedYear, 10));
+  }, [currentData.d, calculationBasis, selectedYear]);
+
   const isNumericMetric = useMemo(() => {
-    for (const row of EP_DATA.d) {
+    for (const row of filteredData) {
       if ((row as any)[selectedMetric] != null) {
         return typeof (row as any)[selectedMetric] === 'number';
       }
     }
     return false;
-  }, [selectedMetric]);
+  }, [filteredData, selectedMetric]);
 
-  const {pivotData, techList, buildCycles} = useMemo(() => {
-    const pivot: Record<number, Record<string, {value: any; status: string}>> = {};
+  // For "All" years mode, track year info with build cycle
+  const {pivotData, techList, buildCycles, yearData} = useMemo(() => {
+    const pivot: Record<string, Record<string, {value: any; status: string; year?: number}>> = {};
     const techs = new Set<string>();
+    const years: Record<string, number> = {}; // Map cycle key to year
 
-    EP_DATA.d.forEach((row: any) => {
+    filteredData.forEach((row: any) => {
       const bc = row.b;
-      if (!pivot[bc]) pivot[bc] = {};
-      pivot[bc][row.t] = {value: row[selectedMetric], status: row.s};
+      const year = row.y;
+      // For "All" years in NPV mode, create composite key with year
+      const cycleKey = calculationBasis === 'NPV' && selectedYear === 'All'
+        ? `${year}-${bc}`
+        : String(bc);
+
+      if (!pivot[cycleKey]) pivot[cycleKey] = {};
+      pivot[cycleKey][row.t] = {value: row[selectedMetric], status: row.s, year};
       techs.add(row.t);
+      if (year) years[cycleKey] = year;
     });
 
     const techListArr = Array.from(techs).sort((a, b) =>
       shortenTech(a).localeCompare(shortenTech(b)),
     );
-    let cycles = Object.keys(pivot).map(Number).sort((a, b) => a - b);
+    let cycles = Object.keys(pivot).sort((a, b) => {
+      // Sort by year first if applicable, then by build cycle
+      if (calculationBasis === 'NPV' && selectedYear === 'All') {
+        const [yearA, bcA] = a.split('-').map(Number);
+        const [yearB, bcB] = b.split('-').map(Number);
+        if (yearA !== yearB) return yearA - yearB;
+        return bcA - bcB;
+      }
+      return parseInt(a, 10) - parseInt(b, 10);
+    });
 
     if (sortConfig.key) {
       cycles.sort((a, b) => {
         let valA: any, valB: any;
         if (sortConfig.key === 'buildCycle') {
-          valA = a;
-          valB = b;
+          if (calculationBasis === 'NPV' && selectedYear === 'All') {
+            const [yearA, bcA] = a.split('-').map(Number);
+            const [yearB, bcB] = b.split('-').map(Number);
+            valA = yearA * 100 + bcA;
+            valB = yearB * 100 + bcB;
+          } else {
+            valA = parseInt(a, 10);
+            valB = parseInt(b, 10);
+          }
+        } else if (sortConfig.key === 'year') {
+          valA = years[a];
+          valB = years[b];
         } else {
           valA = pivot[a]?.[sortConfig.key!]?.value;
           valB = pivot[b]?.[sortConfig.key!]?.value;
@@ -139,17 +243,47 @@ export function ExpansionPlanResultsPage({
       });
     }
 
-    return {pivotData: pivot, techList: techListArr, buildCycles: cycles};
-  }, [selectedMetric, sortConfig]);
+    return {pivotData: pivot, techList: techListArr, buildCycles: cycles, yearData: years};
+  }, [filteredData, selectedMetric, sortConfig, calculationBasis, selectedYear]);
 
-  const getBaseline = (bc: number): any => {
-    if (bc === 0 || !hasBaseline) return null;
-    const prevData = pivotData[bc - 1];
+  const getBaseline = (bcKey: string): any => {
+    // Parse the key to find the previous cycle
+    const bcNum = calculationBasis === 'NPV' && selectedYear === 'All'
+      ? parseInt(bcKey.split('-')[1], 10)
+      : parseInt(bcKey, 10);
+
+    if (bcNum === 0 || !hasBaseline) return null;
+
+    // Find previous cycle key
+    const prevKey = calculationBasis === 'NPV' && selectedYear === 'All'
+      ? `${bcKey.split('-')[0]}-${bcNum - 1}`
+      : String(bcNum - 1);
+
+    const prevData = pivotData[prevKey];
     if (!prevData) return null;
     for (const t of techList) {
       if (prevData[t]?.status?.includes('Selected')) {
         return prevData[t].value;
       }
+    }
+    return null;
+  };
+
+  // Helper to extract build cycle number from key
+  const getBuildCycleFromKey = (key: string): number => {
+    if (calculationBasis === 'NPV' && selectedYear === 'All') {
+      return parseInt(key.split('-')[1], 10);
+    }
+    return parseInt(key, 10);
+  };
+
+  // Helper to get year from key
+  const getYearFromKey = (key: string): number | null => {
+    if (calculationBasis === 'NPV' && selectedYear === 'All') {
+      return parseInt(key.split('-')[0], 10);
+    }
+    if (calculationBasis === 'NPV' && selectedYear !== 'All') {
+      return parseInt(selectedYear, 10);
     }
     return null;
   };
@@ -186,22 +320,72 @@ export function ExpansionPlanResultsPage({
     return techColors[shortName]?.text || '#94a3b8';
   };
 
+  // Get unique years for "All" mode chart
+  const chartYears = useMemo(() => {
+    if (calculationBasis !== 'NPV' || selectedYear !== 'All') return [];
+    const years = new Set<number>();
+    buildCycles.forEach(key => {
+      const year = parseInt(key.split('-')[0], 10);
+      if (!isNaN(year)) years.add(year);
+    });
+    return Array.from(years).sort((a, b) => a - b);
+  }, [buildCycles, calculationBasis, selectedYear]);
+
   // Chart data for SVG visualization
+  // When "All" years selected, create separate series per year for each tech
   const chartData = useMemo(() => {
     if (!isNumericMetric) return null;
 
+    if (calculationBasis === 'NPV' && selectedYear === 'All') {
+      // Group data by year -> tech -> cycles
+      const result: {label: string; color: string; year: number; data: {x: number; y: number | null}[]}[] = [];
+
+      chartYears.forEach((year, yearIdx) => {
+        techList.forEach(tech => {
+          const shortName = shortenTech(tech);
+          const baseColor = techColors[shortName]?.text || '#94a3b8';
+          // Adjust color brightness per year for distinction
+          const opacity = 1 - (yearIdx * 0.15);
+
+          const seriesData: {x: number; y: number | null}[] = [];
+          buildCycles.forEach(key => {
+            const [keyYear, keyCycle] = key.split('-').map(Number);
+            if (keyYear === year) {
+              seriesData.push({
+                x: keyCycle,
+                y: pivotData[key]?.[tech]?.value ?? null,
+              });
+            }
+          });
+
+          if (seriesData.length > 0) {
+            result.push({
+              label: `${shortName} (${year})`,
+              color: baseColor,
+              year,
+              data: seriesData.sort((a, b) => a.x - b.x),
+            });
+          }
+        });
+      });
+
+      return result;
+    }
+
+    // Single year mode
     return techList.map(tech => {
       const shortName = shortenTech(tech);
       return {
         label: shortName,
         color: techColors[shortName]?.text || '#94a3b8',
-        data: buildCycles.map(bc => ({
-          x: bc,
-          y: pivotData[bc]?.[tech]?.value ?? null,
+        year: selectedYear !== 'All' ? parseInt(selectedYear, 10) : 0,
+        data: buildCycles.map(bcKey => ({
+          x: getBuildCycleFromKey(bcKey),
+          y: pivotData[bcKey]?.[tech]?.value ?? null,
         })),
       };
     });
-  }, [pivotData, techList, buildCycles, isNumericMetric]);
+  }, [pivotData, techList, buildCycles, isNumericMetric, calculationBasis, selectedYear, chartYears]);
 
   // Chart bounds for scaling
   const chartBounds = useMemo(() => {
@@ -213,6 +397,10 @@ export function ExpansionPlanResultsPage({
 
     if (allValues.length === 0) return null;
 
+    const allXValues = chartData.flatMap(series =>
+      series.data.map(d => d.x),
+    );
+
     const maxVal = Math.max(...allValues);
     const padding = maxVal * 0.1;
 
@@ -220,10 +408,10 @@ export function ExpansionPlanResultsPage({
       minVal: 0,
       maxVal: maxVal + padding,
       range: maxVal + padding,
-      minCycle: Math.min(...buildCycles),
-      maxCycle: Math.max(...buildCycles),
+      minCycle: Math.min(...allXValues),
+      maxCycle: Math.max(...allXValues),
     };
-  }, [chartData, buildCycles]);
+  }, [chartData]);
 
   const formatAxisValue = (val: number): string => {
     const abs = Math.abs(val);
@@ -236,9 +424,11 @@ export function ExpansionPlanResultsPage({
 
   // Calculate column widths
   const buildCycleColWidth = 100;
+  const yearColWidth = selectedYear === 'All' ? 80 : 0;
+  const evalYearColWidth = calculationBasis === 'NPV' ? 120 : 0;
   const baselineColWidth = hasBaseline ? 100 : 0;
   const techColWidth = 120;
-  const tableWidth = buildCycleColWidth + baselineColWidth + techList.length * techColWidth + 32;
+  const tableWidth = buildCycleColWidth + yearColWidth + evalYearColWidth + baselineColWidth + techList.length * techColWidth + 32;
 
   return (
     <View
@@ -246,8 +436,8 @@ export function ExpansionPlanResultsPage({
       style={styles.container}
       onLayout={onContainerLayout}
       // @ts-ignore - keyboard events for RN Windows
-      onKeyDown={showMetricDropdown ? handleKeyDown : undefined}
-      focusable={showMetricDropdown}>
+      onKeyDown={anyDropdownOpen ? handleKeyDown : undefined}
+      focusable={anyDropdownOpen}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -298,18 +488,105 @@ export function ExpansionPlanResultsPage({
       {/* Controls Panel */}
       <View style={styles.controlsPanel}>
         <View style={styles.controlsRow}>
+          {/* Calculation Basis Dropdown */}
+          <View style={styles.controlSelector}>
+            <Text style={styles.controlLabel}>CALCULATION BASIS</Text>
+            <TouchableOpacity
+              style={styles.dropdown}
+              onPress={() => {
+                setShowCalculationBasisDropdown(!showCalculationBasisDropdown);
+                setShowYearDropdown(false);
+                setShowMetricDropdown(false);
+              }}>
+              <Text style={styles.dropdownText}>{calculationBasis}</Text>
+              <Text style={styles.dropdownArrow}>▼</Text>
+            </TouchableOpacity>
+            {showCalculationBasisDropdown && (
+              <View style={styles.dropdownMenu}>
+                <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
+                  {CALCULATION_BASIS_OPTIONS.map((option) => (
+                    <TouchableOpacity
+                      key={option}
+                      style={[
+                        styles.dropdownItem,
+                        calculationBasis === option && styles.dropdownItemActive,
+                      ]}
+                      onPress={() => {
+                        setCalculationBasis(option);
+                        setShowCalculationBasisDropdown(false);
+                      }}>
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          calculationBasis === option && styles.dropdownItemTextActive,
+                        ]}>
+                        {option}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </View>
+
+          {/* Year Dropdown */}
+          <View style={styles.controlSelector}>
+            <Text style={styles.controlLabel}>YEAR</Text>
+            <TouchableOpacity
+              style={styles.dropdown}
+              onPress={() => {
+                setShowYearDropdown(!showYearDropdown);
+                setShowCalculationBasisDropdown(false);
+                setShowMetricDropdown(false);
+              }}>
+              <Text style={styles.dropdownText}>{selectedYear}</Text>
+              <Text style={styles.dropdownArrow}>▼</Text>
+            </TouchableOpacity>
+            {showYearDropdown && (
+              <View style={styles.dropdownMenu}>
+                <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
+                  {yearOptions.map((year) => (
+                    <TouchableOpacity
+                      key={year}
+                      style={[
+                        styles.dropdownItem,
+                        selectedYear === year && styles.dropdownItemActive,
+                      ]}
+                      onPress={() => {
+                        setSelectedYear(year);
+                        setShowYearDropdown(false);
+                      }}>
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          selectedYear === year && styles.dropdownItemTextActive,
+                        ]}>
+                        {year}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </View>
+
+          {/* Report Metric Dropdown */}
           <View style={styles.metricSelector}>
             <Text style={styles.controlLabel}>REPORT METRIC</Text>
             <TouchableOpacity
               style={styles.dropdown}
-              onPress={() => setShowMetricDropdown(!showMetricDropdown)}>
+              onPress={() => {
+                setShowMetricDropdown(!showMetricDropdown);
+                setShowCalculationBasisDropdown(false);
+                setShowYearDropdown(false);
+              }}>
               <Text style={styles.dropdownText}>{selectedMetric}</Text>
               <Text style={styles.dropdownArrow}>▼</Text>
             </TouchableOpacity>
             {showMetricDropdown && (
               <View style={styles.dropdownMenu}>
                 <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
-                  {EP_DATA.m.map((metric: any) => (
+                  {availableMetrics.map((metric: any) => (
                     <TouchableOpacity
                       key={metric.n}
                       style={[
@@ -364,6 +641,18 @@ export function ExpansionPlanResultsPage({
                     </Text>
                   </TouchableOpacity>
 
+                  {selectedYear === 'All' && (
+                    <View style={[styles.headerCell, {width: yearColWidth}]}>
+                      <Text style={styles.headerCellText}>YEAR</Text>
+                    </View>
+                  )}
+
+                  {calculationBasis === 'NPV' && (
+                    <View style={[styles.headerCell, {width: evalYearColWidth}]}>
+                      <Text style={styles.headerCellText}>EVALUATING YEAR</Text>
+                    </View>
+                  )}
+
                   {hasBaseline && (
                     <View style={[styles.headerCell, styles.baselineHeader, {width: baselineColWidth}]}>
                       <Text style={styles.baselineHeaderText}>BASELINE</Text>
@@ -387,45 +676,61 @@ export function ExpansionPlanResultsPage({
 
                 {/* Table Body */}
                 <ScrollView style={styles.tableBody} nestedScrollEnabled>
-                  {buildCycles.map((bc, idx) => (
-                    <View
-                      key={bc}
-                      style={[styles.tableRow, idx % 2 === 0 && styles.tableRowEven]}>
-                      <View style={[styles.cell, {width: buildCycleColWidth}]}>
-                        <Text style={styles.cellTextBold}>{bc}</Text>
-                      </View>
-
-                      {hasBaseline && (
-                        <View style={[styles.cell, styles.baselineCell, {width: baselineColWidth}]}>
-                          <Text style={styles.baselineCellText}>
-                            {formatValue(getBaseline(bc))}
-                          </Text>
+                  {buildCycles.map((bcKey, idx) => {
+                    const bcNum = getBuildCycleFromKey(bcKey);
+                    const rowYear = getYearFromKey(bcKey);
+                    return (
+                      <View
+                        key={bcKey}
+                        style={[styles.tableRow, idx % 2 === 0 && styles.tableRowEven]}>
+                        <View style={[styles.cell, {width: buildCycleColWidth}]}>
+                          <Text style={styles.cellTextBold}>{bcNum}</Text>
                         </View>
-                      )}
 
-                      {techList.map(tech => {
-                        const cell = pivotData[bc]?.[tech];
-                        const isSelected = cell?.status?.includes('Selected');
-                        return (
-                          <View
-                            key={tech}
-                            style={[
-                              styles.cell,
-                              {width: techColWidth},
-                              isSelected && styles.selectedCell,
-                            ]}>
-                            <Text
-                              style={[
-                                styles.cellTextMono,
-                                isSelected && styles.selectedCellText,
-                              ]}>
-                              {formatValue(cell?.value)}
+                        {selectedYear === 'All' && (
+                          <View style={[styles.cell, {width: yearColWidth}]}>
+                            <Text style={styles.cellTextMono}>{rowYear ?? '—'}</Text>
+                          </View>
+                        )}
+
+                        {calculationBasis === 'NPV' && (
+                          <View style={[styles.cell, {width: evalYearColWidth}]}>
+                            <Text style={styles.cellTextMono}>{rowYear ?? '—'}</Text>
+                          </View>
+                        )}
+
+                        {hasBaseline && (
+                          <View style={[styles.cell, styles.baselineCell, {width: baselineColWidth}]}>
+                            <Text style={styles.baselineCellText}>
+                              {formatValue(getBaseline(bcKey))}
                             </Text>
                           </View>
-                        );
-                      })}
-                    </View>
-                  ))}
+                        )}
+
+                        {techList.map(tech => {
+                          const cell = pivotData[bcKey]?.[tech];
+                          const isSelected = cell?.status?.includes('Selected');
+                          return (
+                            <View
+                              key={tech}
+                              style={[
+                                styles.cell,
+                                {width: techColWidth},
+                                isSelected && styles.selectedCell,
+                              ]}>
+                              <Text
+                                style={[
+                                  styles.cellTextMono,
+                                  isSelected && styles.selectedCellText,
+                                ]}>
+                                {formatValue(cell?.value)}
+                              </Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    );
+                  })}
                 </ScrollView>
               </View>
             </ScrollView>
@@ -515,36 +820,44 @@ export function ExpansionPlanResultsPage({
                         <View style={styles.barXAxisLine} />
 
                         {/* Bars for each build cycle */}
-                        {buildCycles.map(bc => (
-                          <View key={bc} style={styles.barGroup}>
-                            <View style={styles.barsRow}>
-                              {techList.map(tech => {
-                                const value = pivotData[bc]?.[tech]?.value;
-                                const shortName = shortenTech(tech);
-                                const color = techColors[shortName]?.text || '#94a3b8';
-                                const heightPercent =
-                                  value != null && chartBounds.range > 0
-                                    ? (value / chartBounds.range) * 100
-                                    : 0;
+                        {(() => {
+                          // Get unique x-values (build cycles) from chartData
+                          const xValues = new Set<number>();
+                          chartData?.forEach(series => {
+                            series.data.forEach(d => xValues.add(d.x));
+                          });
+                          const sortedX = Array.from(xValues).sort((a, b) => a - b);
 
-                                return (
-                                  <View key={tech} style={styles.barWrapper}>
-                                    <View
-                                      style={[
-                                        styles.bar,
-                                        {
-                                          height: `${Math.max(heightPercent, 0)}%`,
-                                          backgroundColor: color,
-                                        },
-                                      ]}
-                                    />
-                                  </View>
-                                );
-                              })}
+                          return sortedX.map(xVal => (
+                            <View key={xVal} style={styles.barGroup}>
+                              <View style={styles.barsRow}>
+                                {chartData?.map(series => {
+                                  const dataPoint = series.data.find(d => d.x === xVal);
+                                  const value = dataPoint?.y;
+                                  const heightPercent =
+                                    value != null && chartBounds.range > 0
+                                      ? (value / chartBounds.range) * 100
+                                      : 0;
+
+                                  return (
+                                    <View key={series.label} style={styles.barWrapper}>
+                                      <View
+                                        style={[
+                                          styles.bar,
+                                          {
+                                            height: `${Math.max(heightPercent, 0)}%`,
+                                            backgroundColor: series.color,
+                                          },
+                                        ]}
+                                      />
+                                    </View>
+                                  );
+                                })}
+                              </View>
+                              <Text style={styles.barXAxisLabel}>{xVal}</Text>
                             </View>
-                            <Text style={styles.barXAxisLabel}>{bc}</Text>
-                          </View>
-                        ))}
+                          ));
+                        })()}
                       </View>
                     </ScrollView>
                   </View>
@@ -576,96 +889,106 @@ export function ExpansionPlanResultsPage({
 
                     {/* Chart area */}
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chartScrollArea}>
-                      <View style={[styles.lineChartContainer, {width: buildCycles.length * 80}]}>
-                        {/* Horizontal grid lines */}
-                        {[0, 1, 2, 3, 4, 5].map(i => (
-                          <View
-                            key={`hgrid-${i}`}
-                            style={[
-                              styles.lineGridLineH,
-                              {top: i * (276 / 5)},
-                            ]}
-                          />
-                        ))}
+                      {(() => {
+                        // Get unique x-values from chartData
+                        const xValues = new Set<number>();
+                        chartData?.forEach(series => {
+                          series.data.forEach(d => xValues.add(d.x));
+                        });
+                        const sortedX = Array.from(xValues).sort((a, b) => a - b);
+                        const chartWidth = sortedX.length * 80;
 
-                        {/* Y-axis line */}
-                        <View style={styles.yAxisLine} />
+                        return (
+                          <View style={[styles.lineChartContainer, {width: chartWidth}]}>
+                            {/* Horizontal grid lines */}
+                            {[0, 1, 2, 3, 4, 5].map(i => (
+                              <View
+                                key={`hgrid-${i}`}
+                                style={[
+                                  styles.lineGridLineH,
+                                  {top: i * (276 / 5)},
+                                ]}
+                              />
+                            ))}
 
-                        {/* X-axis line */}
-                        <View style={styles.xAxisLine} />
+                            {/* Y-axis line */}
+                            <View style={styles.yAxisLine} />
 
-                        {/* Lines and points for each tech */}
-                        {techList.map(tech => {
-                          const shortName = shortenTech(tech);
-                          const color = techColors[shortName]?.text || '#94a3b8';
-                          const points = buildCycles.map((bc, idx) => {
-                            const value = pivotData[bc]?.[tech]?.value;
-                            const y = value != null && chartBounds.range > 0
-                              ? (1 - value / chartBounds.range) * 276
-                              : 276;
-                            const x = idx * 80 + 40;
-                            return {x, y, value, bc};
-                          });
+                            {/* X-axis line */}
+                            <View style={styles.xAxisLine} />
 
-                          return (
-                            <View key={tech} style={styles.lineChartLayer}>
-                              {/* Connecting lines */}
-                              {points.map((point, idx) => {
-                                if (idx === 0) return null;
-                                const prev = points[idx - 1];
-                                if (prev.value == null || point.value == null) return null;
+                            {/* Lines and points for each series */}
+                            {chartData?.map(series => {
+                              const points = series.data.map(d => {
+                                const idx = sortedX.indexOf(d.x);
+                                const y = d.y != null && chartBounds.range > 0
+                                  ? (1 - d.y / chartBounds.range) * 276
+                                  : 276;
+                                const x = idx * 80 + 40;
+                                return {x, y, value: d.y, xVal: d.x};
+                              });
 
-                                const dx = point.x - prev.x;
-                                const dy = point.y - prev.y;
-                                const length = Math.sqrt(dx * dx + dy * dy);
-                                const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+                              return (
+                                <View key={series.label} style={styles.lineChartLayer}>
+                                  {/* Connecting lines */}
+                                  {points.map((point, idx) => {
+                                    if (idx === 0) return null;
+                                    const prev = points[idx - 1];
+                                    if (prev.value == null || point.value == null) return null;
 
-                                return (
-                                  <View
-                                    key={`line-${idx}`}
-                                    style={[
-                                      styles.lineSegment,
-                                      {
-                                        width: length,
-                                        backgroundColor: color,
-                                        left: prev.x,
-                                        top: prev.y,
-                                        transform: [{rotate: `${angle}deg`}],
-                                      },
-                                    ]}
-                                  />
-                                );
-                              })}
-                              {/* Data points */}
-                              {points.map((point, idx) => {
-                                if (point.value == null) return null;
-                                return (
-                                  <View
-                                    key={`point-${idx}`}
-                                    style={[
-                                      styles.dataPoint,
-                                      {
-                                        left: point.x - 5,
-                                        top: point.y - 5,
-                                        backgroundColor: color,
-                                      },
-                                    ]}
-                                  />
-                                );
-                              })}
+                                    const dx = point.x - prev.x;
+                                    const dy = point.y - prev.y;
+                                    const length = Math.sqrt(dx * dx + dy * dy);
+                                    const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+                                    return (
+                                      <View
+                                        key={`line-${idx}`}
+                                        style={[
+                                          styles.lineSegment,
+                                          {
+                                            width: length,
+                                            backgroundColor: series.color,
+                                            left: prev.x,
+                                            top: prev.y,
+                                            transform: [{rotate: `${angle}deg`}],
+                                          },
+                                        ]}
+                                      />
+                                    );
+                                  })}
+                                  {/* Data points */}
+                                  {points.map((point, idx) => {
+                                    if (point.value == null) return null;
+                                    return (
+                                      <View
+                                        key={`point-${idx}`}
+                                        style={[
+                                          styles.dataPoint,
+                                          {
+                                            left: point.x - 5,
+                                            top: point.y - 5,
+                                            backgroundColor: series.color,
+                                          },
+                                        ]}
+                                      />
+                                    );
+                                  })}
+                                </View>
+                              );
+                            })}
+
+                            {/* X-axis value labels */}
+                            <View style={styles.lineChartXAxis}>
+                              {sortedX.map((xVal, idx) => (
+                                <Text key={xVal} style={[styles.xAxisLabel, {width: 80, textAlign: 'center'}]}>
+                                  {xVal}
+                                </Text>
+                              ))}
                             </View>
-                          );
-                        })}
-
-                        {/* X-axis value labels */}
-                        <View style={styles.lineChartXAxis}>
-                          {buildCycles.map((bc, idx) => (
-                            <Text key={bc} style={[styles.xAxisLabel, {width: 80, textAlign: 'center'}]}>
-                              {bc}
-                            </Text>
-                          ))}
-                        </View>
-                      </View>
+                          </View>
+                        );
+                      })()}
                     </ScrollView>
                   </View>
 
@@ -676,16 +999,12 @@ export function ExpansionPlanResultsPage({
 
               {/* Legend */}
               <View style={styles.chartLegend}>
-                {techList.map(tech => {
-                  const shortName = shortenTech(tech);
-                  const color = techColors[shortName]?.text || '#94a3b8';
-                  return (
-                    <View key={tech} style={styles.chartLegendItem}>
-                      <View style={[styles.chartLegendBox, {backgroundColor: color}]} />
-                      <Text style={styles.chartLegendText}>{shortName}</Text>
-                    </View>
-                  );
-                })}
+                {chartData?.map(series => (
+                  <View key={series.label} style={styles.chartLegendItem}>
+                    <View style={[styles.chartLegendBox, {backgroundColor: series.color}]} />
+                    <Text style={styles.chartLegendText}>{series.label}</Text>
+                  </View>
+                ))}
               </View>
             </View>
           ) : (
@@ -857,9 +1176,14 @@ const styles = StyleSheet.create({
     gap: 16,
     flexWrap: 'wrap',
   },
+  controlSelector: {
+    minWidth: 150,
+    position: 'relative',
+    zIndex: 12,
+  },
   metricSelector: {
     flex: 1,
-    minWidth: 300,
+    minWidth: 250,
     position: 'relative',
     zIndex: 10,
   },

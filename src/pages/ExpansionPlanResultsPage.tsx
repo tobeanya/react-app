@@ -1,4 +1,4 @@
-import React, {useState, useMemo, useRef, useCallback, useEffect} from 'react';
+import React, {useState, useMemo, useRef, useCallback, useEffect, memo} from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   LayoutChangeEvent,
+  FlatList,
 } from 'react-native';
 import {EP_DATA} from '../data/expansionPlanResultsData';
 import {EP_DATA_NPV} from '../data/expansionPlanNpvData';
@@ -62,6 +63,93 @@ const formatValue = (val: any): string => {
   return num.toFixed(2).replace(/\.?0+$/, '');
 };
 
+// Memoized table row component for performance
+interface TableRowProps {
+  bcKey: string;
+  bcNum: number;
+  rowYear: number | null;
+  idx: number;
+  selectedYear: string;
+  calculationBasis: string;
+  hasBaseline: boolean;
+  baseline: any;
+  techList: string[];
+  pivotData: Record<string, Record<string, {value: any; status: string}>>;
+  buildCycleColWidth: number;
+  yearColWidth: number;
+  evalYearColWidth: number;
+  baselineColWidth: number;
+  techColWidth: number;
+  styles: any;
+}
+
+const TableRow = memo(({
+  bcKey,
+  bcNum,
+  rowYear,
+  idx,
+  selectedYear,
+  calculationBasis,
+  hasBaseline,
+  baseline,
+  techList,
+  pivotData,
+  buildCycleColWidth,
+  yearColWidth,
+  evalYearColWidth,
+  baselineColWidth,
+  techColWidth,
+  styles,
+}: TableRowProps) => (
+  <View style={[styles.tableRow, idx % 2 === 0 && styles.tableRowEven]}>
+    <View style={[styles.cell, {width: buildCycleColWidth}]}>
+      <Text style={styles.cellTextBold}>{bcNum}</Text>
+    </View>
+
+    {selectedYear === 'All' && (
+      <View style={[styles.cell, {width: yearColWidth}]}>
+        <Text style={styles.cellTextMono}>{rowYear ?? '—'}</Text>
+      </View>
+    )}
+
+    {calculationBasis === 'NPV' && (
+      <View style={[styles.cell, {width: evalYearColWidth}]}>
+        <Text style={styles.cellTextMono}>{rowYear ?? '—'}</Text>
+      </View>
+    )}
+
+    {hasBaseline && (
+      <View style={[styles.cell, styles.baselineCell, {width: baselineColWidth}]}>
+        <Text style={styles.baselineCellText}>
+          {formatValue(baseline)}
+        </Text>
+      </View>
+    )}
+
+    {techList.map(tech => {
+      const cell = pivotData[bcKey]?.[tech];
+      const isSelected = cell?.status?.includes('Selected');
+      return (
+        <View
+          key={tech}
+          style={[
+            styles.cell,
+            {width: techColWidth},
+            isSelected && styles.selectedCell,
+          ]}>
+          <Text
+            style={[
+              styles.cellTextMono,
+              isSelected && styles.selectedCellText,
+            ]}>
+            {formatValue(cell?.value)}
+          </Text>
+        </View>
+      );
+    })}
+  </View>
+));
+
 // Calculation basis options
 type CalculationBasis = 'Yearly' | 'NPV';
 const CALCULATION_BASIS_OPTIONS: CalculationBasis[] = ['Yearly', 'NPV'];
@@ -83,16 +171,21 @@ export function ExpansionPlanResultsPage({
   planningHorizonEnd = 2040,
 }: Props) {
   const [calculationBasis, setCalculationBasis] = useState<CalculationBasis>('Yearly');
-  const [selectedYear, setSelectedYear] = useState(String(planningHorizonStart));
+  const [selectedYear, setSelectedYear] = useState('All');
   const [selectedMetric, setSelectedMetric] = useState('Added Capacity');
 
-  // Generate year options from planning horizon
-  const yearOptions = useMemo(
-    () => generateYearOptions(planningHorizonStart, planningHorizonEnd),
-    [planningHorizonStart, planningHorizonEnd]
-  );
+  // Generate year options from the actual data
+  const yearOptions = useMemo(() => {
+    const data = calculationBasis === 'NPV' ? EP_DATA_NPV : EP_DATA;
+    const dataYears = new Set<number>();
+    (data.d as any[]).forEach((row: any) => {
+      if (row.y != null) dataYears.add(row.y);
+    });
+    const sortedYears = Array.from(dataYears).sort((a, b) => a - b);
+    return [...sortedYears.map(String), 'All'];
+  }, [calculationBasis]);
 
-  // Reset selected year when planning horizon changes
+  // Reset selected year when year options change (e.g., switching between Yearly and NPV mode)
   useEffect(() => {
     if (!yearOptions.includes(selectedYear)) {
       setSelectedYear(yearOptions[0]);
@@ -189,8 +282,8 @@ export function ExpansionPlanResultsPage({
     filteredData.forEach((row: any) => {
       const bc = row.b;
       const year = row.y;
-      // For "All" years in NPV mode, create composite key with year
-      const cycleKey = calculationBasis === 'NPV' && selectedYear === 'All'
+      // For "All" years mode, create composite key with year
+      const cycleKey = selectedYear === 'All' && year != null
         ? `${year}-${bc}`
         : String(bc);
 
@@ -205,7 +298,7 @@ export function ExpansionPlanResultsPage({
     );
     let cycles = Object.keys(pivot).sort((a, b) => {
       // Sort by year first if applicable, then by build cycle
-      if (calculationBasis === 'NPV' && selectedYear === 'All') {
+      if (selectedYear === 'All') {
         const [yearA, bcA] = a.split('-').map(Number);
         const [yearB, bcB] = b.split('-').map(Number);
         if (yearA !== yearB) return yearA - yearB;
@@ -218,7 +311,7 @@ export function ExpansionPlanResultsPage({
       cycles.sort((a, b) => {
         let valA: any, valB: any;
         if (sortConfig.key === 'buildCycle') {
-          if (calculationBasis === 'NPV' && selectedYear === 'All') {
+          if (selectedYear === 'All') {
             const [yearA, bcA] = a.split('-').map(Number);
             const [yearB, bcB] = b.split('-').map(Number);
             valA = yearA * 100 + bcA;
@@ -244,18 +337,19 @@ export function ExpansionPlanResultsPage({
     }
 
     return {pivotData: pivot, techList: techListArr, buildCycles: cycles, yearData: years};
-  }, [filteredData, selectedMetric, sortConfig, calculationBasis, selectedYear]);
+  }, [filteredData, selectedMetric, sortConfig, selectedYear]);
 
   const getBaseline = (bcKey: string): any => {
     // Parse the key to find the previous cycle
-    const bcNum = calculationBasis === 'NPV' && selectedYear === 'All'
+    const isCompositeKey = selectedYear === 'All' && bcKey.includes('-');
+    const bcNum = isCompositeKey
       ? parseInt(bcKey.split('-')[1], 10)
       : parseInt(bcKey, 10);
 
     if (bcNum === 0 || !hasBaseline) return null;
 
     // Find previous cycle key
-    const prevKey = calculationBasis === 'NPV' && selectedYear === 'All'
+    const prevKey = isCompositeKey
       ? `${bcKey.split('-')[0]}-${bcNum - 1}`
       : String(bcNum - 1);
 
@@ -271,7 +365,7 @@ export function ExpansionPlanResultsPage({
 
   // Helper to extract build cycle number from key
   const getBuildCycleFromKey = (key: string): number => {
-    if (calculationBasis === 'NPV' && selectedYear === 'All') {
+    if (selectedYear === 'All' && key.includes('-')) {
       return parseInt(key.split('-')[1], 10);
     }
     return parseInt(key, 10);
@@ -279,10 +373,10 @@ export function ExpansionPlanResultsPage({
 
   // Helper to get year from key
   const getYearFromKey = (key: string): number | null => {
-    if (calculationBasis === 'NPV' && selectedYear === 'All') {
+    if (selectedYear === 'All' && key.includes('-')) {
       return parseInt(key.split('-')[0], 10);
     }
-    if (calculationBasis === 'NPV' && selectedYear !== 'All') {
+    if (selectedYear !== 'All') {
       return parseInt(selectedYear, 10);
     }
     return null;
@@ -320,23 +414,36 @@ export function ExpansionPlanResultsPage({
     return techColors[shortName]?.text || '#94a3b8';
   };
 
-  // Get unique years for "All" mode chart
+  // Get unique years for "All" mode chart - limit to 5 years for performance
   const chartYears = useMemo(() => {
-    if (calculationBasis !== 'NPV' || selectedYear !== 'All') return [];
+    if (selectedYear !== 'All') return [];
     const years = new Set<number>();
     buildCycles.forEach(key => {
-      const year = parseInt(key.split('-')[0], 10);
-      if (!isNaN(year)) years.add(year);
+      if (key.includes('-')) {
+        const year = parseInt(key.split('-')[0], 10);
+        if (!isNaN(year)) years.add(year);
+      }
     });
-    return Array.from(years).sort((a, b) => a - b);
-  }, [buildCycles, calculationBasis, selectedYear]);
+    const sorted = Array.from(years).sort((a, b) => a - b);
+    // Limit to 5 years for chart performance - take first, last, and 3 evenly spaced
+    if (sorted.length <= 5) return sorted;
+    const step = Math.floor(sorted.length / 4);
+    return [sorted[0], sorted[step], sorted[step * 2], sorted[step * 3], sorted[sorted.length - 1]];
+  }, [buildCycles, selectedYear]);
+
+  // Helper to sample data points for chart performance
+  const sampleData = useCallback((data: {x: number; y: number | null}[], maxPoints: number = 24) => {
+    if (data.length <= maxPoints) return data;
+    const step = Math.ceil(data.length / maxPoints);
+    return data.filter((_, idx) => idx % step === 0 || idx === data.length - 1);
+  }, []);
 
   // Chart data for SVG visualization
   // When "All" years selected, create separate series per year for each tech
   const chartData = useMemo(() => {
     if (!isNumericMetric) return null;
 
-    if (calculationBasis === 'NPV' && selectedYear === 'All') {
+    if (selectedYear === 'All' && chartYears.length > 0) {
       // Group data by year -> tech -> cycles
       const result: {label: string; color: string; year: number; data: {x: number; y: number | null}[]}[] = [];
 
@@ -344,8 +451,6 @@ export function ExpansionPlanResultsPage({
         techList.forEach(tech => {
           const shortName = shortenTech(tech);
           const baseColor = techColors[shortName]?.text || '#94a3b8';
-          // Adjust color brightness per year for distinction
-          const opacity = 1 - (yearIdx * 0.15);
 
           const seriesData: {x: number; y: number | null}[] = [];
           buildCycles.forEach(key => {
@@ -363,7 +468,7 @@ export function ExpansionPlanResultsPage({
               label: `${shortName} (${year})`,
               color: baseColor,
               year,
-              data: seriesData.sort((a, b) => a.x - b.x),
+              data: sampleData(seriesData.sort((a, b) => a.x - b.x)),
             });
           }
         });
@@ -375,17 +480,18 @@ export function ExpansionPlanResultsPage({
     // Single year mode
     return techList.map(tech => {
       const shortName = shortenTech(tech);
+      const data = buildCycles.map(bcKey => ({
+        x: getBuildCycleFromKey(bcKey),
+        y: pivotData[bcKey]?.[tech]?.value ?? null,
+      }));
       return {
         label: shortName,
         color: techColors[shortName]?.text || '#94a3b8',
         year: selectedYear !== 'All' ? parseInt(selectedYear, 10) : 0,
-        data: buildCycles.map(bcKey => ({
-          x: getBuildCycleFromKey(bcKey),
-          y: pivotData[bcKey]?.[tech]?.value ?? null,
-        })),
+        data: sampleData(data),
       };
     });
-  }, [pivotData, techList, buildCycles, isNumericMetric, calculationBasis, selectedYear, chartYears]);
+  }, [pivotData, techList, buildCycles, isNumericMetric, selectedYear, chartYears, sampleData]);
 
   // Chart bounds for scaling
   const chartBounds = useMemo(() => {
@@ -529,9 +635,9 @@ export function ExpansionPlanResultsPage({
             )}
           </View>
 
-          {/* Year Dropdown */}
+          {/* Build Year Dropdown */}
           <View style={styles.controlSelector}>
-            <Text style={styles.controlLabel}>YEAR</Text>
+            <Text style={styles.controlLabel}>BUILD YEAR</Text>
             <TouchableOpacity
               style={styles.dropdown}
               onPress={() => {
@@ -643,7 +749,7 @@ export function ExpansionPlanResultsPage({
 
                   {selectedYear === 'All' && (
                     <View style={[styles.headerCell, {width: yearColWidth}]}>
-                      <Text style={styles.headerCellText}>YEAR</Text>
+                      <Text style={styles.headerCellText}>BUILD YEAR</Text>
                     </View>
                   )}
 
@@ -674,64 +780,45 @@ export function ExpansionPlanResultsPage({
                   ))}
                 </View>
 
-                {/* Table Body */}
-                <ScrollView style={styles.tableBody} nestedScrollEnabled>
-                  {buildCycles.map((bcKey, idx) => {
+                {/* Table Body - Virtualized */}
+                <FlatList
+                  style={styles.tableBody}
+                  data={buildCycles}
+                  keyExtractor={(item) => item}
+                  initialNumToRender={20}
+                  maxToRenderPerBatch={20}
+                  windowSize={10}
+                  removeClippedSubviews={true}
+                  getItemLayout={(_, index) => ({
+                    length: 36,
+                    offset: 36 * index,
+                    index,
+                  })}
+                  renderItem={({item: bcKey, index: idx}) => {
                     const bcNum = getBuildCycleFromKey(bcKey);
                     const rowYear = getYearFromKey(bcKey);
                     return (
-                      <View
-                        key={bcKey}
-                        style={[styles.tableRow, idx % 2 === 0 && styles.tableRowEven]}>
-                        <View style={[styles.cell, {width: buildCycleColWidth}]}>
-                          <Text style={styles.cellTextBold}>{bcNum}</Text>
-                        </View>
-
-                        {selectedYear === 'All' && (
-                          <View style={[styles.cell, {width: yearColWidth}]}>
-                            <Text style={styles.cellTextMono}>{rowYear ?? '—'}</Text>
-                          </View>
-                        )}
-
-                        {calculationBasis === 'NPV' && (
-                          <View style={[styles.cell, {width: evalYearColWidth}]}>
-                            <Text style={styles.cellTextMono}>{rowYear ?? '—'}</Text>
-                          </View>
-                        )}
-
-                        {hasBaseline && (
-                          <View style={[styles.cell, styles.baselineCell, {width: baselineColWidth}]}>
-                            <Text style={styles.baselineCellText}>
-                              {formatValue(getBaseline(bcKey))}
-                            </Text>
-                          </View>
-                        )}
-
-                        {techList.map(tech => {
-                          const cell = pivotData[bcKey]?.[tech];
-                          const isSelected = cell?.status?.includes('Selected');
-                          return (
-                            <View
-                              key={tech}
-                              style={[
-                                styles.cell,
-                                {width: techColWidth},
-                                isSelected && styles.selectedCell,
-                              ]}>
-                              <Text
-                                style={[
-                                  styles.cellTextMono,
-                                  isSelected && styles.selectedCellText,
-                                ]}>
-                                {formatValue(cell?.value)}
-                              </Text>
-                            </View>
-                          );
-                        })}
-                      </View>
+                      <TableRow
+                        bcKey={bcKey}
+                        bcNum={bcNum}
+                        rowYear={rowYear}
+                        idx={idx}
+                        selectedYear={selectedYear}
+                        calculationBasis={calculationBasis}
+                        hasBaseline={hasBaseline}
+                        baseline={getBaseline(bcKey)}
+                        techList={techList}
+                        pivotData={pivotData}
+                        buildCycleColWidth={buildCycleColWidth}
+                        yearColWidth={yearColWidth}
+                        evalYearColWidth={evalYearColWidth}
+                        baselineColWidth={baselineColWidth}
+                        techColWidth={techColWidth}
+                        styles={styles}
+                      />
                     );
-                  })}
-                </ScrollView>
+                  }}
+                />
               </View>
             </ScrollView>
           </View>

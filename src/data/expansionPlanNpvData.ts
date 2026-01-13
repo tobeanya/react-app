@@ -30,7 +30,11 @@ const technologies = [
   'Candidate_Wind_W_RestOfSys',
 ];
 
-const years = [2035, 2036, 2037, 2038, 2039, 2040];
+// Generate years from 2030 to 2040 to cover typical planning horizons
+const years: number[] = [];
+for (let y = 2030; y <= 2040; y++) {
+  years.push(y);
+}
 
 // Generate sample NPV data
 function generateNpvData(): NpvData {

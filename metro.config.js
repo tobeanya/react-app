@@ -28,6 +28,8 @@ const config = {
       new RegExp(`${rnwPath}/target/.*`),
       /.*\.ProjectImports\.zip/,
     ],
+    // Enable package.json exports field resolution for @tanstack/react-query
+    unstable_enablePackageExports: true,
     //
   },
   transformer: {

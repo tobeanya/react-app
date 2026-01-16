@@ -16,6 +16,7 @@ interface Props {
   onModalVisibleChange: (visible: boolean) => void;
   planningHorizonStart: number;
   planningHorizonEnd: number;
+  scenarioId?: number | null;
 }
 
 type SortDirection = 'asc' | 'desc' | null;
@@ -35,24 +36,18 @@ export function UnitAdditionResultsPage({
     direction: 'asc',
   });
 
-  // Generate year columns based on planning horizon (max 5 years for display)
+  // Generate year columns based on planning horizon
   const years = useMemo(() => {
     const result: number[] = [];
-    const maxYears = Math.min(5, planningHorizonEnd - planningHorizonStart + 1);
-    for (let i = 0; i < maxYears; i++) {
-      result.push(planningHorizonStart + i);
+    for (let year = planningHorizonStart; year <= planningHorizonEnd; year++) {
+      result.push(year);
     }
     return result;
   }, [planningHorizonStart, planningHorizonEnd]);
 
-  // Helper to get year value from result - maps display year to data property
+  // Helper to get year value from result using dynamic yearlyCapacity
   const getYearValue = (item: UnitAdditionResult, year: number): number => {
-    const yearIndex = year - planningHorizonStart;
-    const yearKeys = ['year2026', 'year2027', 'year2028', 'year2029', 'year2030'] as const;
-    if (yearIndex >= 0 && yearIndex < yearKeys.length) {
-      return item[yearKeys[yearIndex]];
-    }
-    return 0;
+    return item.yearlyCapacity?.[year] ?? 0;
   };
 
   // Calculate summary statistics
@@ -140,7 +135,11 @@ export function UnitAdditionResultsPage({
   };
 
   const formatNumber = (num: number) => {
-    return num.toLocaleString();
+    // Format with 2 decimal places and thousand separators
+    const fixed = num.toFixed(2);
+    const [intPart, decPart] = fixed.split('.');
+    const withCommas = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return `${withCommas}.${decPart}`;
   };
 
   const formatCurrency = (num: number) => {

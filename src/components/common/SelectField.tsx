@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useRef} from 'react';
 import {TouchableOpacity, View, Text, StyleSheet} from 'react-native';
 import { colors } from '../../styles/colors';
 
@@ -11,12 +11,34 @@ interface SelectFieldProps {
 }
 
 export function SelectField({label, value, displayValue, onPress, disabled}: SelectFieldProps) {
+  const buttonRef = useRef<View>(null);
+
+  const handlePress = (e: any) => {
+    // Measure the button's position relative to the window
+    if (buttonRef.current) {
+      buttonRef.current.measure((x, y, width, height, pageX, pageY) => {
+        // Create an event-like object with the measured position
+        // Position dropdown directly below the button
+        const measuredEvent = {
+          nativeEvent: {
+            pageX: pageX,
+            pageY: pageY + height, // Position below the button
+          },
+        };
+        onPress(measuredEvent);
+      });
+    } else {
+      onPress(e);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
       <TouchableOpacity
+        ref={buttonRef}
         style={[styles.selectButton, disabled && styles.selectButtonDisabled]}
-        onPress={(e) => onPress(e)}
+        onPress={handlePress}
         disabled={disabled}>
         <Text style={[styles.selectText, disabled && {color: '#999'}]} numberOfLines={1}>
           {displayValue || value || 'Select...'}

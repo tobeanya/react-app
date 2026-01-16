@@ -7,8 +7,12 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  ScrollView,
 } from 'react-native';
 import {ExpansionPlan} from '../types';
+import {useDatabaseScenarios} from '../hooks';
+import {DatabaseScenario, getScenarioStatusColor, getRegionColor} from '../data/mockScenarios';
+import {DatabaseConnectionSection} from '../components/DatabaseConnectionSection';
 
 interface Props {
   expansionPlans: ExpansionPlan[];
@@ -18,7 +22,12 @@ interface Props {
   onUpdatePlan: (plan: ExpansionPlan) => void;
   onDeletePlan: (id: string) => void;
   onCopyPlan: (id: string, newName: string) => void;
+  onResetAllData: () => void;
   onModalVisibleChange: (visible: boolean) => void;
+  storageMode: 'local' | 'database';
+  onStorageModeChange: (mode: 'local' | 'database') => void;
+  selectedDatabaseScenarioId: number | null;
+  onSelectDatabaseScenario: (id: number | null) => void;
 }
 
 export function HomePage({
@@ -29,10 +38,34 @@ export function HomePage({
   onUpdatePlan,
   onDeletePlan,
   onCopyPlan,
+  onResetAllData,
   onModalVisibleChange,
+  storageMode,
+  onStorageModeChange,
+  selectedDatabaseScenarioId,
+  onSelectDatabaseScenario,
 }: Props) {
   const [modalVisible, setModalVisible] = useState(false);
   const containerRef = useRef<View>(null);
+
+  // Fetch database scenarios and mutations
+  const {
+    scenarios,
+    isLoading: isScenariosLoading,
+    isUsingMockData,
+    createScenario,
+    updateScenario,
+    deleteScenario,
+    isCreating,
+  } = useDatabaseScenarios();
+
+  // State for editing database scenarios
+  const [editingScenarioId, setEditingScenarioId] = useState<number | null>(null);
+  const [copyingScenarioId, setCopyingScenarioId] = useState<number | null>(null);
+
+  // State for database connection modal
+  const [connectionModalVisible, setConnectionModalVisible] = useState(false);
+  const [isDbConnected, setIsDbConnected] = useState(false);
 
   const showModal = () => {
     setModalVisible(true);
@@ -44,21 +77,36 @@ export function HomePage({
     onModalVisibleChange(false);
   }, [onModalVisibleChange]);
 
+  const showConnectionModal = useCallback(() => {
+    setConnectionModalVisible(true);
+    onModalVisibleChange(true);
+  }, [onModalVisibleChange]);
+
+  const hideConnectionModal = useCallback(() => {
+    setConnectionModalVisible(false);
+    onModalVisibleChange(false);
+  }, [onModalVisibleChange]);
+
   // Handle escape key
   const handleKeyDown = useCallback((e: any) => {
     const key = e.nativeEvent?.key || e.key;
-    if (key === 'Escape' && modalVisible) {
-      hideModal();
+    if (key === 'Escape') {
+      if (modalVisible) {
+        hideModal();
+      } else if (connectionModalVisible) {
+        hideConnectionModal();
+      }
     }
-  }, [modalVisible, hideModal]);
+  }, [modalVisible, connectionModalVisible, hideModal, hideConnectionModal]);
 
   // Focus container when modal opens
+  const anyModalOpen = modalVisible || connectionModalVisible;
   useEffect(() => {
-    if (modalVisible && containerRef.current) {
+    if (anyModalOpen && containerRef.current) {
       // @ts-ignore
       containerRef.current.focus?.();
     }
-  }, [modalVisible]);
+  }, [anyModalOpen]);
   const [editingPlan, setEditingPlan] = useState<ExpansionPlan | null>(null);
   const [copyingPlanId, setCopyingPlanId] = useState<string | null>(null);
   const [planName, setPlanName] = useState('');
@@ -66,6 +114,8 @@ export function HomePage({
   const openCreateModal = () => {
     setEditingPlan(null);
     setCopyingPlanId(null);
+    setEditingScenarioId(null);
+    setCopyingScenarioId(null);
     setPlanName('');
     showModal();
   };
@@ -73,6 +123,8 @@ export function HomePage({
   const openEditModal = (plan: ExpansionPlan) => {
     setEditingPlan(plan);
     setCopyingPlanId(null);
+    setEditingScenarioId(null);
+    setCopyingScenarioId(null);
     setPlanName(plan.name);
     showModal();
   };
@@ -80,24 +132,74 @@ export function HomePage({
   const openCopyModal = (plan: ExpansionPlan) => {
     setEditingPlan(null);
     setCopyingPlanId(plan.id);
+    setEditingScenarioId(null);
+    setCopyingScenarioId(null);
     setPlanName('');
     showModal();
   };
 
-  const handleSave = () => {
+  // Database scenario modal handlers
+  const openEditScenarioModal = (scenario: DatabaseScenario) => {
+    setEditingPlan(null);
+    setCopyingPlanId(null);
+    setEditingScenarioId(scenario.epScenarioId);
+    setCopyingScenarioId(null);
+    setPlanName(scenario.epScenarioDescription);
+    showModal();
+  };
+
+  const openCopyScenarioModal = (scenario: DatabaseScenario) => {
+    setEditingPlan(null);
+    setCopyingPlanId(null);
+    setEditingScenarioId(null);
+    setCopyingScenarioId(scenario.epScenarioId);
+    setPlanName('');
+    showModal();
+  };
+
+  const handleSave = async () => {
     if (!planName.trim()) {
       Alert.alert('Error', 'Name is required');
       return;
     }
-    if (copyingPlanId) {
-      onCopyPlan(copyingPlanId, planName);
-    } else if (editingPlan) {
-      onUpdatePlan({...editingPlan, name: planName});
+
+    if (storageMode === 'database') {
+      // Database mode: use API
+      try {
+        if (editingScenarioId) {
+          // Update existing scenario
+          await updateScenario(editingScenarioId, planName);
+        } else if (copyingScenarioId) {
+          // Copy scenario (create new with same data)
+          const newScenario = await createScenario(planName);
+          if (newScenario.epScenarioId) {
+            onSelectDatabaseScenario(newScenario.epScenarioId);
+          }
+        } else {
+          // Create new scenario
+          const newScenario = await createScenario(planName);
+          if (newScenario.epScenarioId) {
+            onSelectDatabaseScenario(newScenario.epScenarioId);
+          }
+        }
+        hideModal();
+        setEditingScenarioId(null);
+        setCopyingScenarioId(null);
+      } catch (error) {
+        Alert.alert('Error', 'Failed to save plan in database');
+      }
     } else {
-      onCreatePlan(planName);
+      // Local mode: use local state
+      if (copyingPlanId) {
+        onCopyPlan(copyingPlanId, planName);
+      } else if (editingPlan) {
+        onUpdatePlan({...editingPlan, name: planName});
+      } else {
+        onCreatePlan(planName);
+      }
+      hideModal();
+      setCopyingPlanId(null);
     }
-    hideModal();
-    setCopyingPlanId(null);
   };
 
   const handleDelete = (plan: ExpansionPlan) => {
@@ -107,6 +209,30 @@ export function HomePage({
       [
         {text: 'Cancel', style: 'cancel'},
         {text: 'Delete', style: 'destructive', onPress: () => onDeletePlan(plan.id)},
+      ],
+    );
+  };
+
+  const handleDeleteScenario = (scenario: DatabaseScenario) => {
+    Alert.alert(
+      'Delete Plan',
+      `Are you sure you want to delete "${scenario.epScenarioDescription}"?`,
+      [
+        {text: 'Cancel', style: 'cancel'},
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteScenario(scenario.epScenarioId);
+              if (selectedDatabaseScenarioId === scenario.epScenarioId) {
+                onSelectDatabaseScenario(null);
+              }
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete plan from database');
+            }
+          },
+        },
       ],
     );
   };
@@ -173,14 +299,61 @@ export function HomePage({
     </TouchableOpacity>
   );
 
+  // Render database scenario item - matches local plan item style
+  const renderScenarioItem = ({item}: {item: DatabaseScenario}) => {
+    const statusColors = getScenarioStatusColor(item.status);
+    const isSelected = selectedDatabaseScenarioId === item.epScenarioId;
+
+    return (
+      <TouchableOpacity
+        style={[styles.planItem, isSelected && styles.planItemSelected]}
+        onPress={() => onSelectDatabaseScenario(item.epScenarioId)}>
+        <View style={styles.planHeader}>
+          <View style={styles.planInfo}>
+            <Text style={styles.planName}>{item.epScenarioDescription}</Text>
+            <Text style={styles.planDetails}>
+              {item.createdDate ? `Created: ${item.createdDate}` : 'Database Plan'}
+            </Text>
+          </View>
+          {item.status && (
+            <View style={[styles.statusBadge, {backgroundColor: statusColors.bg, borderColor: statusColors.border}]}>
+              <View style={[styles.statusDot, {backgroundColor: statusColors.text}]} />
+              <Text style={[styles.statusText, {color: statusColors.text}]}>
+                {item.status}
+              </Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.planActions}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => openEditScenarioModal(item)}>
+            <Text style={styles.actionText}>Rename</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => openCopyScenarioModal(item)}>
+            <Text style={styles.actionText}>Copy</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.deleteButton]}
+            onPress={() => handleDeleteScenario(item)}>
+            <Text style={styles.deleteText}>Delete</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <View
       ref={containerRef}
       style={styles.container}
       // @ts-ignore - keyboard events for RN Windows
-      onKeyDown={modalVisible ? handleKeyDown : undefined}
-      onKeyUp={modalVisible ? handleKeyDown : undefined}
-      focusable={modalVisible}>
+      onKeyDown={anyModalOpen ? handleKeyDown : undefined}
+      onKeyUp={anyModalOpen ? handleKeyDown : undefined}
+      focusable={anyModalOpen}>
+      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.headerIconContainer}>
@@ -188,25 +361,111 @@ export function HomePage({
           </View>
           <Text style={styles.title}>EXPANSION PLANS</Text>
         </View>
-        <TouchableOpacity style={styles.createButton} onPress={openCreateModal}>
-          <Text style={styles.createButtonText}>+ New Plan</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          {/* Storage Mode Toggle */}
+          <View style={styles.storageModeToggle}>
+            <TouchableOpacity
+              style={[
+                styles.modeButton,
+                storageMode === 'local' && styles.modeButtonActive,
+              ]}
+              onPress={() => onStorageModeChange('local')}>
+              <Text style={[
+                styles.modeButtonText,
+                storageMode === 'local' && styles.modeButtonTextActive,
+              ]}>Local</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.modeButton,
+                storageMode === 'database' && styles.modeButtonActiveDb,
+              ]}
+              onPress={() => onStorageModeChange('database')}>
+              <Text style={[
+                styles.modeButtonText,
+                storageMode === 'database' && styles.modeButtonTextActiveDb,
+              ]}>Database</Text>
+            </TouchableOpacity>
+          </View>
+          {storageMode === 'database' && (
+            <TouchableOpacity
+              style={[
+                styles.configureDbButton,
+                isDbConnected && styles.configureDbButtonConnected,
+              ]}
+              onPress={showConnectionModal}>
+              <View
+                style={[
+                  styles.connectionIndicator,
+                  isDbConnected
+                    ? styles.connectionIndicatorConnected
+                    : styles.connectionIndicatorDisconnected,
+                ]}
+              />
+              <Text style={styles.configureDbButtonText}>
+                {isDbConnected ? 'Connected' : 'Configure Database'}
+              </Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.createButton} onPress={openCreateModal}>
+            <Text style={styles.createButtonText}>+ New Plan</Text>
+          </TouchableOpacity>
+          {storageMode === 'local' && (
+            <TouchableOpacity
+              style={styles.resetButton}
+              onPress={() => {
+                Alert.alert(
+                  'Reset All Data',
+                  'This will delete all your plans and data, and create fresh sample plans. Are you sure?',
+                  [
+                    {text: 'Cancel', style: 'cancel'},
+                    {text: 'Reset', style: 'destructive', onPress: onResetAllData},
+                  ],
+                );
+              }}>
+              <Text style={styles.resetButtonText}>Reset Data</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
-      {expansionPlans.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>No expansion plans yet</Text>
-          <Text style={styles.emptySubtext}>
-            Create your first plan to get started
-          </Text>
-        </View>
+      {/* Content based on storage mode */}
+      {storageMode === 'local' ? (
+        // Local storage: show expansion plans
+        expansionPlans.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>No expansion plans yet</Text>
+            <Text style={styles.emptySubtext}>
+              Create your first plan to get started
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={expansionPlans}
+            keyExtractor={item => item.id}
+            renderItem={renderPlanItem}
+            contentContainerStyle={styles.list}
+          />
+        )
       ) : (
-        <FlatList
-          data={expansionPlans}
-          keyExtractor={item => item.id}
-          renderItem={renderPlanItem}
-          contentContainerStyle={styles.list}
-        />
+        // Database mode: show database scenarios as plans
+        scenarios.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>No expansion plans yet</Text>
+            <Text style={styles.emptySubtext}>
+              {isUsingMockData
+                ? 'Click "Configure Database" to connect'
+                : 'No plans found in database'}
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={scenarios}
+            keyExtractor={item => String(item.epScenarioId)}
+            renderItem={renderScenarioItem}
+            contentContainerStyle={styles.list}
+          />
+        )
       )}
 
       {modalVisible && (
@@ -219,9 +478,9 @@ export function HomePage({
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {copyingPlanId
+                {copyingPlanId || copyingScenarioId
                   ? 'Copy Expansion Plan'
-                  : editingPlan
+                  : editingPlan || editingScenarioId
                   ? 'Rename Plan'
                   : 'New Expansion Plan'}
               </Text>
@@ -249,10 +508,34 @@ export function HomePage({
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
                 <Text style={styles.saveButtonText}>
-                  {copyingPlanId ? 'Copy' : editingPlan ? 'Save' : 'Create'}
+                  {copyingPlanId || copyingScenarioId ? 'Copy' : editingPlan || editingScenarioId ? 'Save' : 'Create'}
                 </Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      )}
+
+      {/* Database Connection Modal */}
+      {connectionModalVisible && (
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalBackdrop}
+            activeOpacity={1}
+            onPress={hideConnectionModal}
+          />
+          <View style={styles.connectionModalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Database Connection</Text>
+              <TouchableOpacity onPress={hideConnectionModal}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.connectionModalBody}>
+              <DatabaseConnectionSection
+                onConnectionChange={(connected) => setIsDbConnected(connected)}
+              />
+            </ScrollView>
           </View>
         </View>
       )}
@@ -267,6 +550,35 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  // Database scenario styles
+  scenarioDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+    flexWrap: 'wrap',
+  },
+  regionBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  regionBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  horizonText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 4,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -280,6 +592,41 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  storageModeToggle: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    borderRadius: 6,
+    padding: 2,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  modeButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 4,
+  },
+  modeButtonActive: {
+    backgroundColor: 'rgba(59, 130, 246, 0.3)',
+  },
+  modeButtonActiveDb: {
+    backgroundColor: 'rgba(52, 211, 153, 0.3)',
+  },
+  modeButtonText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.textTertiary,
+  },
+  modeButtonTextActive: {
+    color: '#60a5fa',
+  },
+  modeButtonTextActiveDb: {
+    color: '#34d399',
   },
   headerIconContainer: {
     width: 48,
@@ -308,6 +655,19 @@ const styles = StyleSheet.create({
   },
   createButtonText: {
     color: colors.text,
+    fontWeight: '600',
+  },
+  resetButton: {
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.4)',
+  },
+  resetButtonText: {
+    color: '#ef4444',
     fontWeight: '600',
   },
   list: {
@@ -345,10 +705,13 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
   },
   statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
     marginLeft: 8,
+    gap: 4,
   },
   activeBadge: {
     backgroundColor: 'rgba(16, 185, 129, 0.2)',
@@ -363,6 +726,7 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 12,
     fontWeight: '600',
+    textTransform: 'capitalize',
   },
   activeText: {
     color: colors.green,
@@ -501,5 +865,92 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 14,
     fontWeight: '600',
+  },
+  // Database mode styles
+  databaseContent: {
+    flex: 1,
+  },
+  databaseContentContainer: {
+    padding: 16,
+  },
+  connectionSection: {
+    backgroundColor: colors.backgroundLight,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 20,
+  },
+  connectionHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: 'rgba(15, 23, 42, 0.3)',
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+  },
+  connectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textTertiary,
+    letterSpacing: 1,
+  },
+  scenariosSection: {
+    flex: 1,
+  },
+  scenariosSectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textTertiary,
+    letterSpacing: 1,
+    marginBottom: 12,
+  },
+  emptyStateInline: {
+    paddingVertical: 40,
+    alignItems: 'center',
+  },
+  // Configure Database button styles
+  configureDbButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(51, 65, 85, 0.6)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    gap: 8,
+  },
+  configureDbButtonConnected: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+  },
+  connectionIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  connectionIndicatorConnected: {
+    backgroundColor: colors.green,
+  },
+  connectionIndicatorDisconnected: {
+    backgroundColor: colors.red,
+  },
+  configureDbButtonText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  // Connection modal styles
+  connectionModalContent: {
+    backgroundColor: '#1e293b',
+    borderRadius: 12,
+    width: 450,
+    maxHeight: '80%',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.3)',
+  },
+  connectionModalBody: {
+    maxHeight: 500,
   },
 });

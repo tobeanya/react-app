@@ -94,3 +94,15 @@ nul
 *-Installer-*
 
 .vs/
+
+# .NET Backend
+backend/**/bin/
+backend/**/obj/
+backend/**/*.user
+backend/**/*.suo
+backend/**/*.cache
+backend/**/appsettings.User.json
+*.DotSettings.user
+
+# Temporary PowerShell scripts
+*.ps1

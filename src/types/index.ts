@@ -142,6 +142,7 @@ export type LogType = 'Info' | 'Warning' | 'Error';
 
 export interface SolverLog {
   id: string;
+  expansionPlanId: string;
   type: LogType;
   time: string;
   message: string;
@@ -225,11 +226,7 @@ export interface UnitAdditionResult {
   candidate: string;
   technology: TechnologyType;
   totalCapacity: number;
-  year2026: number;
-  year2027: number;
-  year2028: number;
-  year2029: number;
-  year2030: number;
+  yearlyCapacity: Record<number, number>; // Dynamic yearly capacity: { 2025: 100, 2026: 200, ... }
   capex: number;
   region: Region;
 }
@@ -241,11 +238,7 @@ export interface UnitRetirementResult {
   candidate: string;
   technology: string;
   totalCapacity: number;
-  year2026: number;
-  year2027: number;
-  year2028: number;
-  year2029: number;
-  year2030: number;
+  yearlyCapacity: Record<number, number>; // Dynamic yearly capacity: { 2025: 100, 2026: 200, ... }
   omCost: number;
   region: Region;
 }
@@ -583,24 +576,24 @@ export const SAMPLE_UNITS: Unit[] = [
   },
 ];
 
-// Sample solver logs for testing
+// Sample solver logs for testing (used for database mode; local mode generates plan-specific logs)
 export const SAMPLE_SOLVER_LOGS: SolverLog[] = [
-  { id: 'log-1', type: 'Info', time: '12/16/2025 1:05 PM', message: 'Starting Expansion Planning Solver' },
-  { id: 'log-2', type: 'Info', time: '12/16/2025 1:05 PM', message: 'Starting Simulations for Year 2026 Iteration 0' },
-  { id: 'log-3', type: 'Info', time: '12/16/2025 1:25 PM', message: 'Cases finished simulating. Checking on the results' },
-  { id: 'log-4', type: 'Info', time: '12/16/2025 3:15 PM', message: 'EUE_Cap/LOLH_Cap * 0.25 is 2192.86 MW...Adding multiple units to the study' },
-  { id: 'log-5', type: 'Info', time: '12/16/2025 3:15 PM', message: 'Adding the most efficient expansion planning unit (SPP Candidate_Advanced CT) to study' },
-  { id: 'log-6', type: 'Info', time: '12/16/2025 3:15 PM', message: 'Running expansion planning studies with additional expansion units' },
-  { id: 'log-7', type: 'Info', time: '12/16/2025 3:33 PM', message: 'Clearing Generated Output' },
-  { id: 'log-8', type: 'Info', time: '12/16/2025 3:33 PM', message: 'Starting set of simulations for next year' },
-  { id: 'log-9', type: 'Info', time: '12/16/2025 3:33 PM', message: 'Starting Simulations for Year 2026 Iteration 1' },
-  { id: 'log-10', type: 'Info', time: '12/16/2025 3:40 PM', message: 'Cases finished simulating. Checking on the results' },
-  { id: 'log-11', type: 'Info', time: '12/16/2025 3:41 PM', message: 'EUE_Cap/LOLH_Cap * 0.25 is 1705.207 MW...Adding multiple units to the study' },
-  { id: 'log-12', type: 'Info', time: '12/16/2025 3:41 PM', message: 'Adding the most efficient expansion planning unit (SPP Candidate_Advanced CT) to study' },
-  { id: 'log-13', type: 'Info', time: '12/16/2025 3:41 PM', message: 'Running expansion planning studies with additional expansion units' },
-  { id: 'log-14', type: 'Info', time: '12/16/2025 3:45 PM', message: 'Clearing Generated Output' },
-  { id: 'log-15', type: 'Info', time: '12/16/2025 4:07 PM', message: 'Starting Simulations for Year 2026 Iteration 2' },
-  { id: 'log-16', type: 'Warning', time: '12/16/2025 4:30 PM', message: 'High memory usage detected, optimizing resources' },
-  { id: 'log-17', type: 'Info', time: '12/16/2025 5:44 PM', message: 'Cases finished simulating. Checking on the results' },
-  { id: 'log-18', type: 'Info', time: '12/16/2025 5:44 PM', message: 'Solver completed successfully' },
+  { id: 'log-1', expansionPlanId: '', type: 'Info', time: '12/16/2025 1:05 PM', message: 'Starting Expansion Planning Solver' },
+  { id: 'log-2', expansionPlanId: '', type: 'Info', time: '12/16/2025 1:05 PM', message: 'Starting Simulations for Year 2026 Iteration 0' },
+  { id: 'log-3', expansionPlanId: '', type: 'Info', time: '12/16/2025 1:25 PM', message: 'Cases finished simulating. Checking on the results' },
+  { id: 'log-4', expansionPlanId: '', type: 'Info', time: '12/16/2025 3:15 PM', message: 'EUE_Cap/LOLH_Cap * 0.25 is 2192.86 MW...Adding multiple units to the study' },
+  { id: 'log-5', expansionPlanId: '', type: 'Info', time: '12/16/2025 3:15 PM', message: 'Adding the most efficient expansion planning unit (SPP Candidate_Advanced CT) to study' },
+  { id: 'log-6', expansionPlanId: '', type: 'Info', time: '12/16/2025 3:15 PM', message: 'Running expansion planning studies with additional expansion units' },
+  { id: 'log-7', expansionPlanId: '', type: 'Info', time: '12/16/2025 3:33 PM', message: 'Clearing Generated Output' },
+  { id: 'log-8', expansionPlanId: '', type: 'Info', time: '12/16/2025 3:33 PM', message: 'Starting set of simulations for next year' },
+  { id: 'log-9', expansionPlanId: '', type: 'Info', time: '12/16/2025 3:33 PM', message: 'Starting Simulations for Year 2026 Iteration 1' },
+  { id: 'log-10', expansionPlanId: '', type: 'Info', time: '12/16/2025 3:40 PM', message: 'Cases finished simulating. Checking on the results' },
+  { id: 'log-11', expansionPlanId: '', type: 'Info', time: '12/16/2025 3:41 PM', message: 'EUE_Cap/LOLH_Cap * 0.25 is 1705.207 MW...Adding multiple units to the study' },
+  { id: 'log-12', expansionPlanId: '', type: 'Info', time: '12/16/2025 3:41 PM', message: 'Adding the most efficient expansion planning unit (SPP Candidate_Advanced CT) to study' },
+  { id: 'log-13', expansionPlanId: '', type: 'Info', time: '12/16/2025 3:41 PM', message: 'Running expansion planning studies with additional expansion units' },
+  { id: 'log-14', expansionPlanId: '', type: 'Info', time: '12/16/2025 3:45 PM', message: 'Clearing Generated Output' },
+  { id: 'log-15', expansionPlanId: '', type: 'Info', time: '12/16/2025 4:07 PM', message: 'Starting Simulations for Year 2026 Iteration 2' },
+  { id: 'log-16', expansionPlanId: '', type: 'Warning', time: '12/16/2025 4:30 PM', message: 'High memory usage detected, optimizing resources' },
+  { id: 'log-17', expansionPlanId: '', type: 'Info', time: '12/16/2025 5:44 PM', message: 'Cases finished simulating. Checking on the results' },
+  { id: 'log-18', expansionPlanId: '', type: 'Info', time: '12/16/2025 5:44 PM', message: 'Solver completed successfully' },
 ];

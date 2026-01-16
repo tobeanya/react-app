@@ -1,0 +1,6 @@
+@ExpansionPlanApi_HostAddress = http://localhost:5143
+
+GET {{ExpansionPlanApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

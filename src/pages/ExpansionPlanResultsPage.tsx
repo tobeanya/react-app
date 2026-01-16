@@ -7,9 +7,11 @@ import {
   TouchableOpacity,
   LayoutChangeEvent,
   FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import {EP_DATA} from '../data/expansionPlanResultsData';
 import {EP_DATA_NPV} from '../data/expansionPlanNpvData';
+import {useExpansionPlanResults, ResultsData} from '../hooks';
 import {colors} from '../styles/colors';
 
 interface Props {
@@ -18,6 +20,8 @@ interface Props {
   onToggleDetailedResults?: () => void;
   planningHorizonStart?: number;
   planningHorizonEnd?: number;
+  scenarioId?: number | null; // Optional: if provided, fetches from API
+  epResultsData?: ResultsData | null; // Plan-specific data for local storage mode
 }
 
 type SortDirection = 'asc' | 'desc';
@@ -169,21 +173,30 @@ export function ExpansionPlanResultsPage({
   onToggleDetailedResults,
   planningHorizonStart = 2035,
   planningHorizonEnd = 2040,
+  scenarioId = null,
+  epResultsData = null,
 }: Props) {
   const [calculationBasis, setCalculationBasis] = useState<CalculationBasis>('Yearly');
   const [selectedYear, setSelectedYear] = useState('All');
   const [selectedMetric, setSelectedMetric] = useState('Added Capacity');
 
+  // Fetch data from API or use mock data
+  const {data: resultsData, isLoading, isUsingMockData} = useExpansionPlanResults({
+    scenarioId,
+    calculationBasis,
+    enabled: true,
+    localData: epResultsData, // Pass plan-specific data for local storage mode
+  });
+
   // Generate year options from the actual data
   const yearOptions = useMemo(() => {
-    const data = calculationBasis === 'NPV' ? EP_DATA_NPV : EP_DATA;
     const dataYears = new Set<number>();
-    (data.d as any[]).forEach((row: any) => {
+    (resultsData.d as any[]).forEach((row: any) => {
       if (row.y != null) dataYears.add(row.y);
     });
     const sortedYears = Array.from(dataYears).sort((a, b) => a - b);
     return [...sortedYears.map(String), 'All'];
-  }, [calculationBasis]);
+  }, [resultsData]);
 
   // Reset selected year when year options change (e.g., switching between Yearly and NPV mode)
   useEffect(() => {
@@ -223,17 +236,13 @@ export function ExpansionPlanResultsPage({
 
   // Reset metric when calculation basis changes
   useEffect(() => {
-    if (calculationBasis === 'NPV') {
-      setSelectedMetric(EP_DATA_NPV.m[0].n);
-    } else {
-      setSelectedMetric('Added Capacity');
+    if (resultsData.m.length > 0) {
+      setSelectedMetric(resultsData.m[0].n);
     }
-  }, [calculationBasis]);
+  }, [calculationBasis, resultsData.m]);
 
-  // Get current data source based on calculation basis
-  const currentData = useMemo(() => {
-    return calculationBasis === 'NPV' ? EP_DATA_NPV : EP_DATA;
-  }, [calculationBasis]);
+  // Get current data source (now from hook)
+  const currentData = resultsData;
 
   // Get available metrics based on calculation basis
   const availableMetrics = useMemo(() => {
@@ -555,6 +564,28 @@ export function ExpansionPlanResultsPage({
             <Text style={styles.headerSubtitle}>
               Build cycle analysis by technology
             </Text>
+          </View>
+          {/* Data source indicator */}
+          <View style={[
+            styles.dataSourceBadge,
+            isUsingMockData ? styles.dataSourceMock : styles.dataSourceApi,
+          ]}>
+            {isLoading ? (
+              <ActivityIndicator size="small" color={colors.blue} />
+            ) : (
+              <>
+                <View style={[
+                  styles.dataSourceDot,
+                  isUsingMockData ? styles.dataSourceDotMock : styles.dataSourceDotApi,
+                ]} />
+                <Text style={[
+                  styles.dataSourceText,
+                  isUsingMockData ? styles.dataSourceTextMock : styles.dataSourceTextApi,
+                ]}>
+                  {isUsingMockData ? 'Sample Data' : 'Live Data'}
+                </Text>
+              </>
+            )}
           </View>
         </View>
         <View style={styles.headerRight}>
@@ -1141,6 +1172,45 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+  dataSourceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    marginLeft: 8,
+    gap: 6,
+  },
+  dataSourceMock: {
+    backgroundColor: 'rgba(251, 191, 36, 0.15)',
+    borderColor: 'rgba(251, 191, 36, 0.3)',
+  },
+  dataSourceApi: {
+    backgroundColor: 'rgba(52, 211, 153, 0.15)',
+    borderColor: 'rgba(52, 211, 153, 0.3)',
+  },
+  dataSourceDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  dataSourceDotMock: {
+    backgroundColor: '#fbbf24',
+  },
+  dataSourceDotApi: {
+    backgroundColor: '#34d399',
+  },
+  dataSourceText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  dataSourceTextMock: {
+    color: '#fbbf24',
+  },
+  dataSourceTextApi: {
+    color: '#34d399',
   },
   headerIconContainer: {
     width: 48,

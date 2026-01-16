@@ -48,6 +48,8 @@ interface Props {
   onUpdatePlan: (plan: ExpansionPlan) => void;
   onSaveAll: () => void;
   onModalVisibleChange: (visible: boolean) => void;
+  storageMode?: 'local' | 'database';
+  scenarioId?: number | null;
 }
 
 // Dropdown state type for centralized modal
@@ -76,14 +78,25 @@ import { colors } from '../styles/colors';
 import {SelectField} from '../components/common/SelectField';
 import {InputField} from '../components/common/InputField';
 import {Checkbox} from '../components/common/Checkbox';
+import {useScenarioDetails, useScenarioSolverSettings} from '../hooks/useScenarioDetails';
 
 // Main Settings Page Component
-export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpdatePlan, onSaveAll, onModalVisibleChange}: Props) {
+export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpdatePlan, onSaveAll, onModalVisibleChange, storageMode = 'local', scenarioId}: Props) {
   const [activeDataTab, setActiveDataTab] = useState<'constraints' | 'escalation'>('constraints');
   const [dropdown, setDropdown] = useState<DropdownState>(initialDropdownState);
   const [scrollOffset, setScrollOffset] = useState(0);
   const dropdownListRef = useRef<ScrollView>(null);
+  const containerRef = useRef<View>(null);
   const [containerDimensions, setContainerDimensions] = useState({width: 800, height: 600});
+  const [containerPosition, setContainerPosition] = useState({x: 0, y: 0});
+
+  // Fetch database scenario details when in database mode
+  const {details: scenarioDetails, isLoading: isLoadingDetails} = useScenarioDetails(
+    storageMode === 'database' ? scenarioId : null
+  );
+  const {settings: solverSettings, isLoading: isLoadingSolver} = useScenarioSolverSettings(
+    storageMode === 'database' ? scenarioId : null
+  );
 
   // Ref for keyboard handler
   const keyboardHandlerRef = useRef<View>(null);
@@ -137,9 +150,9 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
     onModalVisibleChange(false);
   }, [onModalVisibleChange]);
 
-  // Initialize form when selectedPlan changes
+  // Initialize form when selectedPlan changes (local mode)
   useEffect(() => {
-    if (selectedPlan) {
+    if (storageMode === 'local' && selectedPlan) {
       setSourceStudyId(selectedPlan.sourceStudyId);
       setRegion(selectedPlan.region);
       setSettings(selectedPlan.settings);
@@ -154,7 +167,77 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
         iterationsFutureYear: selectedPlan.settings.iterationsFutureYear.toString(),
       });
     }
-  }, [selectedPlan]);
+  }, [storageMode, selectedPlan]);
+
+  // Initialize form when scenarioDetails changes (database mode)
+  useEffect(() => {
+    if (storageMode === 'database' && scenarioDetails) {
+      // Map database data to local form state
+      const study = scenarioDetails.studies?.[0];
+      if (study?.studyId) {
+        setSourceStudyId(study.studyId.toString());
+      }
+
+      // Map region from study or default to ERCOT
+      // In database mode, region might come from study data
+      setRegion('ERCOT'); // Default - could be mapped from study data
+
+      // Map constraints from metrics
+      const constraints: Constraint[] = (scenarioDetails.metrics || []).map((m, idx) => ({
+        id: m.constraintId?.toString() || `db-${idx}`,
+        variable: (m.constraintVariable as ConstraintVariableType) || 'LOLE Capacity',
+        year: parseInt(m.year || '2025', 10),
+        limit: m.stage1Value?.toString() || '0',
+        exceedanceThreshold: m.exceedanceValue?.toString() || '0',
+        priority: m.priority || idx + 1,
+      }));
+
+      // Map escalation inputs from escalatingRates
+      const escalationInputs: EscalationInput[] = (scenarioDetails.escalatingRates || []).map((e, idx) => ({
+        id: e.unitVarId?.toString() || `db-esc-${idx}`,
+        variable: (e.escalatingVariable as EscalationVariableType) || 'Fixed Carrying Cost',
+        rate: e.rate || 0,
+      }));
+
+      // Map solver settings
+      const solverSettingsMap: Record<string, string> = {};
+      (solverSettings || []).forEach(s => {
+        if (s.solverVarName && s.solverValue) {
+          solverSettingsMap[s.solverVarName] = s.solverValue;
+        }
+      });
+
+      const newSettings: ExpansionPlanSettings = {
+        ...DEFAULT_SETTINGS,
+        constraints,
+        escalationInputs,
+        // Map solver settings if available
+        solverType: (solverSettingsMap['SolverType'] as SolverType) || DEFAULT_SETTINGS.solverType,
+        solutionCriterion: (solverSettingsMap['SolutionCriterion'] as SolutionCriterion) || DEFAULT_SETTINGS.solutionCriterion,
+        simulationYearStepSize: parseInt(solverSettingsMap['SimulationYearStepSize'] || '1', 10) || DEFAULT_SETTINGS.simulationYearStepSize,
+        baseYear: parseInt(solverSettingsMap['BaseYear'] || '2025', 10) || DEFAULT_SETTINGS.baseYear,
+        economicDiscountRate: parseFloat(solverSettingsMap['EconomicDiscountRate'] || '0') || DEFAULT_SETTINGS.economicDiscountRate,
+        reliabilityDiscountRate: parseFloat(solverSettingsMap['ReliabilityDiscountRate'] || '0') || DEFAULT_SETTINGS.reliabilityDiscountRate,
+        weatherYearSelection: (solverSettingsMap['WeatherYearSelection'] as WeatherYearSelection) || DEFAULT_SETTINGS.weatherYearSelection,
+        loadUncertainty: (solverSettingsMap['LoadUncertainty'] as LoadUncertainty) || DEFAULT_SETTINGS.loadUncertainty,
+        includeOutages: solverSettingsMap['IncludeOutages'] === 'true',
+        autoExportResults: solverSettingsMap['AutoExportResults'] === 'true',
+        iterationsPromptYear: parseInt(solverSettingsMap['IterationsPromptYear'] || '1', 10) || DEFAULT_SETTINGS.iterationsPromptYear,
+        iterationsFutureYear: parseInt(solverSettingsMap['IterationsFutureYear'] || '5', 10) || DEFAULT_SETTINGS.iterationsFutureYear,
+      };
+
+      setSettings(newSettings);
+      setNumericInputs({
+        simulationYearStepSize: newSettings.simulationYearStepSize.toString(),
+        baseYear: newSettings.baseYear.toString(),
+        automatedResubmissionTime: newSettings.automatedResubmissionTime.toString(),
+        economicDiscountRate: newSettings.economicDiscountRate.toString(),
+        reliabilityDiscountRate: newSettings.reliabilityDiscountRate.toString(),
+        iterationsPromptYear: newSettings.iterationsPromptYear.toString(),
+        iterationsFutureYear: newSettings.iterationsFutureYear.toString(),
+      });
+    }
+  }, [storageMode, scenarioDetails, solverSettings]);
 
   // Unified escape key handler
   const handleKeyDown = useCallback((e: any) => {
@@ -181,9 +264,13 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
 
   const selectedStudy = SAMPLE_STUDIES.find(s => s.id === sourceStudyId);
 
-  const onContainerLayout = useCallback((event: any) => {
-    const {width, height} = event.nativeEvent.layout;
-    setContainerDimensions({width, height});
+  const onContainerLayout = useCallback(() => {
+    if (containerRef.current) {
+      containerRef.current.measure((x, y, width, height, pageX, pageY) => {
+        setContainerDimensions({width, height});
+        setContainerPosition({x: pageX, y: pageY});
+      });
+    }
   }, []);
 
   const openDropdown = (
@@ -204,7 +291,38 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
     setScrollOffset(event.nativeEvent.contentOffset.y);
   };
 
-  if (!selectedPlan) {
+  // Check for loading state (database mode only)
+  const isLoading = storageMode === 'database' && (isLoadingDetails || isLoadingSolver);
+
+  // Determine if we have valid data to display
+  const hasData = storageMode === 'local' ? !!selectedPlan : !!scenarioDetails;
+
+  // Get plan name for display
+  const planName = storageMode === 'local'
+    ? selectedPlan?.name || ''
+    : scenarioDetails?.scenario?.epScenarioDescription || '';
+
+  // Get planning horizon from study data
+  const planningHorizonStart = storageMode === 'local'
+    ? selectedStudy?.startYear
+    : scenarioDetails?.studies?.[0]?.year ? parseInt(scenarioDetails.studies[0].year, 10) : undefined;
+
+  const planningHorizonEnd = storageMode === 'local'
+    ? selectedStudy?.endYear
+    : scenarioDetails?.studies?.[0]?.endYear ? parseInt(scenarioDetails.studies[0].endYear, 10) : undefined;
+
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyText}>Loading...</Text>
+          <Text style={styles.emptySubtext}>Fetching scenario data from database</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (!hasData) {
     return (
       <View style={styles.container}>
         <View style={styles.emptyState}>
@@ -221,16 +339,19 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
   ) => {
     const newSettings = {...settings, [key]: value};
     setSettings(newSettings);
-    // Auto-save to parent immediately to persist across tab switches
-    const study = SAMPLE_STUDIES.find(s => s.id === sourceStudyId);
-    onUpdatePlan({
-      ...selectedPlan,
-      sourceStudyId,
-      planningHorizonStart: study?.startYear || selectedPlan.planningHorizonStart,
-      planningHorizonEnd: study?.endYear || selectedPlan.planningHorizonEnd,
-      region,
-      settings: newSettings,
-    });
+    // Auto-save to parent immediately to persist across tab switches (local mode only)
+    if (storageMode === 'local' && selectedPlan) {
+      const study = SAMPLE_STUDIES.find(s => s.id === sourceStudyId);
+      onUpdatePlan({
+        ...selectedPlan,
+        sourceStudyId,
+        planningHorizonStart: study?.startYear || selectedPlan.planningHorizonStart,
+        planningHorizonEnd: study?.endYear || selectedPlan.planningHorizonEnd,
+        region,
+        settings: newSettings,
+      });
+    }
+    // TODO: In database mode, could implement API call to save settings
   };
 
   // Handle numeric input change (just update local string state)
@@ -255,22 +376,28 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
   };
 
   const handleSave = () => {
-    const study = SAMPLE_STUDIES.find(s => s.id === sourceStudyId);
-    onUpdatePlan({
-      ...selectedPlan,
-      sourceStudyId,
-      planningHorizonStart: study?.startYear || 2025,
-      planningHorizonEnd: study?.endYear || 2045,
-      region,
-      settings,
-    });
+    if (storageMode === 'local' && selectedPlan) {
+      const study = SAMPLE_STUDIES.find(s => s.id === sourceStudyId);
+      onUpdatePlan({
+        ...selectedPlan,
+        sourceStudyId,
+        planningHorizonStart: study?.startYear || 2025,
+        planningHorizonEnd: study?.endYear || 2045,
+        region,
+        settings,
+      });
+    }
+    // TODO: In database mode, implement API call to save settings
   };
 
   const handleCancel = () => {
-    if (selectedPlan) {
+    if (storageMode === 'local' && selectedPlan) {
       setSourceStudyId(selectedPlan.sourceStudyId);
       setRegion(selectedPlan.region);
       setSettings(selectedPlan.settings);
+    } else if (storageMode === 'database' && scenarioDetails) {
+      // Re-fetch or reset to original database values
+      // The useEffect will handle this when scenarioDetails changes
     }
   };
 
@@ -423,7 +550,12 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
 
   return (
     <View
-      ref={keyboardHandlerRef}
+      ref={(ref) => {
+        // @ts-ignore - assign to both refs
+        keyboardHandlerRef.current = ref;
+        // @ts-ignore
+        containerRef.current = ref;
+      }}
       style={styles.container}
       onLayout={onContainerLayout}
       // @ts-ignore - keyboard events for RN Windows
@@ -455,7 +587,7 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
               <View style={styles.col}>
                 <Text style={styles.label}>EXPANSION PLAN</Text>
                 <View style={styles.planNameDisplay}>
-                  <Text style={styles.planNameText}>{selectedPlan.name}</Text>
+                  <Text style={styles.planNameText}>{planName}</Text>
                 </View>
               </View>
               <View style={styles.colSmall}>
@@ -463,13 +595,13 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
                 <View style={styles.horizonRow}>
                   <View style={[styles.horizonInput, styles.horizonInputDisabled]}>
                     <Text style={styles.horizonText}>
-                      {selectedStudy?.startYear || '—'}
+                      {planningHorizonStart || '—'}
                     </Text>
                   </View>
                   <Text style={styles.horizonSeparator}>–</Text>
                   <View style={[styles.horizonInput, styles.horizonInputDisabled]}>
                     <Text style={styles.horizonText}>
-                      {selectedStudy?.endYear || '—'}
+                      {planningHorizonEnd || '—'}
                     </Text>
                   </View>
                 </View>
@@ -480,8 +612,11 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
                 <SelectField
                   label="SOURCE STUDY"
                   value={sourceStudyId}
-                  displayValue={getStudyName(sourceStudyId)}
-                  onPress={(e) => openDropdown(
+                  displayValue={storageMode === 'database'
+                    ? scenarioDetails?.studies?.[0]?.unitCategoryDescription || 'Database Study'
+                    : getStudyName(sourceStudyId)}
+                  disabled={storageMode === 'database'}
+                  onPress={(e) => storageMode === 'local' && openDropdown(
                     'Select Source Study',
                     SAMPLE_STUDIES.map(s => s.id),
                     sourceStudyId,
@@ -492,15 +627,17 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
                       if (study && study.regions.length === 1) {
                         setRegion(newRegion);
                       }
-                      // Auto-save source study change
-                      onUpdatePlan({
-                        ...selectedPlan,
-                        sourceStudyId: id,
-                        planningHorizonStart: study?.startYear || selectedPlan.planningHorizonStart,
-                        planningHorizonEnd: study?.endYear || selectedPlan.planningHorizonEnd,
-                        region: newRegion,
-                        settings,
-                      });
+                      // Auto-save source study change (local mode only)
+                      if (selectedPlan) {
+                        onUpdatePlan({
+                          ...selectedPlan,
+                          sourceStudyId: id,
+                          planningHorizonStart: study?.startYear || selectedPlan.planningHorizonStart,
+                          planningHorizonEnd: study?.endYear || selectedPlan.planningHorizonEnd,
+                          region: newRegion,
+                          settings,
+                        });
+                      }
                       closeDropdown();
                     },
                     (id) => SAMPLE_STUDIES.find(s => s.id === id)?.name || id,
@@ -512,23 +649,25 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
                 <SelectField
                   label="ASSESSMENT REGION"
                   value={region}
-                  disabled={!sourceStudyId}
-                  displayValue={sourceStudyId ? region : 'Select a source study first'}
-                  onPress={(e) => sourceStudyId && openDropdown(
+                  disabled={storageMode === 'database' || !sourceStudyId}
+                  displayValue={storageMode === 'database' ? region : (sourceStudyId ? region : 'Select a source study first')}
+                  onPress={(e) => storageMode === 'local' && sourceStudyId && openDropdown(
                     'Select Region',
                     selectedStudy?.regions || [...REGIONS],
                     region,
                     (r) => {
                       setRegion(r as Region);
-                      // Auto-save region change
-                      onUpdatePlan({
-                        ...selectedPlan,
-                        sourceStudyId,
-                        planningHorizonStart: selectedStudy?.startYear || selectedPlan.planningHorizonStart,
-                        planningHorizonEnd: selectedStudy?.endYear || selectedPlan.planningHorizonEnd,
-                        region: r as Region,
-                        settings,
-                      });
+                      // Auto-save region change (local mode only)
+                      if (selectedPlan) {
+                        onUpdatePlan({
+                          ...selectedPlan,
+                          sourceStudyId,
+                          planningHorizonStart: selectedStudy?.startYear || selectedPlan.planningHorizonStart,
+                          planningHorizonEnd: selectedStudy?.endYear || selectedPlan.planningHorizonEnd,
+                          region: r as Region,
+                          settings,
+                        });
+                      }
                       closeDropdown();
                     },
                     undefined,
@@ -856,8 +995,9 @@ export function SettingsPage({selectedPlan, expansionPlans, onSelectPlan, onUpda
             styles.dropdownModal,
             {
               position: 'absolute',
-              top: Math.min(dropdown.positionY, containerDimensions.height - 300),
-              left: Math.max(20, Math.min(dropdown.positionX - 150, containerDimensions.width - 320)),
+              // Subtract container position to get relative coordinates, position directly below the button
+              top: Math.min(dropdown.positionY - containerPosition.y, containerDimensions.height - 300),
+              left: Math.max(20, Math.min(dropdown.positionX - containerPosition.x, containerDimensions.width - 320)),
             }
           ]}>
             <ScrollView

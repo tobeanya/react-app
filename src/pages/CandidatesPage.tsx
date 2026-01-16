@@ -19,6 +19,7 @@ import {
   SAMPLE_UNITS,
   Unit,
 } from '../types';
+import {useScenarioDetails} from '../hooks/useScenarioDetails';
 
 interface Props {
   generationCandidates: GenerationCandidate[];
@@ -32,6 +33,8 @@ interface Props {
   onUpdateTransmissionCandidate: (candidate: TransmissionCandidate) => void;
   onDeleteTransmissionCandidates: (ids: string[]) => void;
   onModalVisibleChange: (visible: boolean) => void;
+  storageMode?: 'local' | 'database';
+  scenarioId?: number | null;
 }
 
 const defaultGenForm = {
@@ -100,9 +103,16 @@ export function CandidatesPage({
   onUpdateTransmissionCandidate,
   onDeleteTransmissionCandidates,
   onModalVisibleChange,
+  storageMode = 'local',
+  scenarioId,
 }: Props) {
   const containerRef = useRef<View>(null);
   const [containerWidth, setContainerWidth] = useState(800);
+
+  // Fetch database scenario details when in database mode
+  const {details: scenarioDetails, isLoading: isLoadingDetails} = useScenarioDetails(
+    storageMode === 'database' ? scenarioId : null
+  );
 
   // Column widths state for resizing
   const [genColWidths, setGenColWidths] = useState(initialGenColumnWidths);
@@ -149,10 +159,24 @@ export function CandidatesPage({
 
   const anyModalOpen = showGenModal || showTransModal;
 
-  // Filter candidates for selected plan
-  const filteredGenCandidates = generationCandidates.filter(
-    c => c.expansionPlanId === selectedPlanId,
-  );
+  // Filter/map candidates based on storage mode
+  const filteredGenCandidates: GenerationCandidate[] = storageMode === 'database'
+    ? (scenarioDetails?.units || []).map((unit, idx) => ({
+        id: unit.epUnitId?.toString() || `db-unit-${idx}`,
+        expansionPlanId: scenarioId?.toString() || '',
+        units: [unit.epUnitDescription || 'Unknown Unit'],
+        capacity: unit.capacity || 0,
+        fixedCost: unit.totalFixedCosts || 0,
+        startMonth: 'Jan' as Month,
+        startYear: parseInt(unit.year || '2026', 10),
+        endYear: parseInt(unit.endYear || '2030', 10),
+        maxAdditionsPerYear: unit.maxNumberOfBuildPerYear,
+        maxAdditionsOverall: unit.maxNumberOfBuild,
+        isRetirement: unit.isRetirementCandidate || false,
+        lifetime: unit.lifetime || 30,
+      }))
+    : generationCandidates.filter(c => c.expansionPlanId === selectedPlanId);
+
   const filteredTransCandidates = transmissionCandidates.filter(
     c => c.expansionPlanId === selectedPlanId,
   );
@@ -433,7 +457,26 @@ export function CandidatesPage({
     />
   );
 
-  if (!selectedPlanId) {
+  // Check for loading state (database mode only)
+  const isLoading = storageMode === 'database' && isLoadingDetails;
+
+  // Determine if we have valid data to display
+  const hasData = storageMode === 'local' ? !!selectedPlanId : !!scenarioDetails;
+
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyText}>Loading...</Text>
+          <Text style={styles.emptySubtext}>
+            Fetching candidate data from database
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (!hasData) {
     return (
       <View style={styles.container}>
         <View style={styles.emptyState}>

@@ -14,6 +14,7 @@ import {SolverResult} from '../types';
 interface Props {
   solverResults: SolverResult[];
   onModalVisibleChange: (visible: boolean) => void;
+  scenarioId?: number | null;
 }
 
 // Column definitions

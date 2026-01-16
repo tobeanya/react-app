@@ -15,6 +15,7 @@ import {colors} from '../styles/colors';
 interface Props {
   npvResults: NPVResult[];
   onModalVisibleChange: (visible: boolean) => void;
+  scenarioId?: number | null;
 }
 
 type SortDirection = 'asc' | 'desc' | null;

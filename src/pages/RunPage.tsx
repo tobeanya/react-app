@@ -6,7 +6,9 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
-import {ExpansionPlan, RunCase, SolverStatusType, SAMPLE_STUDIES} from '../types';
+import {ExpansionPlan, RunCase, SolverStatusType, SAMPLE_STUDIES, Region} from '../types';
+import {useScenarioDetails} from '../hooks/useScenarioDetails';
+import {useDatabaseScenarios} from '../hooks';
 
 interface Props {
   expansionPlans: ExpansionPlan[];
@@ -17,6 +19,8 @@ interface Props {
   onStopSolver: (planId: string) => void;
   onPauseSolver: (planId: string) => void;
   onModalVisibleChange: (visible: boolean) => void;
+  storageMode?: 'local' | 'database';
+  scenarioId?: number | null;
 }
 
 type SortDirection = 'asc' | 'desc' | null;
@@ -47,6 +51,8 @@ export function RunPage({
   onStartSolver,
   onStopSolver,
   onPauseSolver,
+  storageMode = 'local',
+  scenarioId,
 }: Props) {
   const [showPlanDropdown, setShowPlanDropdown] = useState(false);
   const [sortConfig, setSortConfig] = useState<SortConfig>({key: null, direction: null});
@@ -59,7 +65,35 @@ export function RunPage({
     startWidth: number;
   } | null>(null);
 
+  // Fetch database data when in database mode
+  const {scenarios, isLoading: isLoadingScenarios} = useDatabaseScenarios();
+  const {details: scenarioDetails, isLoading: isLoadingDetails} = useScenarioDetails(
+    storageMode === 'database' ? scenarioId : null
+  );
+
   const selectedPlan = expansionPlans.find(p => p.id === selectedPlanId);
+  const selectedScenario = scenarios.find(s => s.epScenarioId === scenarioId);
+
+  // Get plan/scenario name for display based on mode
+  const activePlanName = storageMode === 'local'
+    ? selectedPlan?.name || 'Select a plan'
+    : selectedScenario?.epScenarioDescription || 'Select a plan';
+
+  // Get study info for display based on mode
+  const activeStudyName = storageMode === 'local'
+    ? (selectedPlan?.sourceStudyId
+        ? SAMPLE_STUDIES.find(s => s.id === selectedPlan.sourceStudyId)?.name || '-'
+        : '-')
+    : (scenarioDetails?.studies?.[0]?.unitCategoryDescription || '-');
+
+  // Get planning horizon
+  const planningHorizonStart = storageMode === 'local'
+    ? selectedPlan?.planningHorizonStart
+    : (scenarioDetails?.studies?.[0]?.year ? parseInt(scenarioDetails.studies[0].year, 10) : undefined);
+
+  const planningHorizonEnd = storageMode === 'local'
+    ? selectedPlan?.planningHorizonEnd
+    : (scenarioDetails?.studies?.[0]?.endYear ? parseInt(scenarioDetails.studies[0].endYear, 10) : undefined);
 
   // Helper to get status for a plan - now looks up from per-plan statuses
   const getPlanStatus = (planId: string): 'Running' | 'Paused' | 'Inactive' | 'Error' | 'Finished' => {
@@ -78,8 +112,30 @@ export function RunPage({
     }
   };
 
-  // Generate run cases from actual expansion plans
+  // Generate run cases from expansion plans (local mode) or scenarios (database mode)
   const runCases: RunCase[] = useMemo(() => {
+    if (storageMode === 'database') {
+      // In database mode, show database scenarios
+      return scenarios.map(scenario => {
+        const status = getPlanStatus(scenario.epScenarioId?.toString() || '');
+        return {
+          id: scenario.epScenarioId?.toString() || '',
+          expansionPlanId: scenario.epScenarioId?.toString() || '',
+          expansionPlanName: scenario.epScenarioDescription || 'Unnamed Scenario',
+          study: '-', // Could be fetched from scenario details if needed
+          region: (scenario.region || 'ERCOT') as Region,
+          status,
+          cycle: status === 'Running' ? 1 : 0,
+          caseRunning: status === 'Running' ? 1 : 0,
+          totalCapacityBuilt: '0 MW',
+          totalCapacityRetired: '0 MW',
+          horizon: scenario.planningHorizonStart && scenario.planningHorizonEnd
+            ? `${scenario.planningHorizonStart}-${scenario.planningHorizonEnd}`
+            : '-',
+        };
+      });
+    }
+    // Local mode - use expansion plans
     return expansionPlans.map(plan => {
       const study = SAMPLE_STUDIES.find(s => s.id === plan.sourceStudyId);
       const status = getPlanStatus(plan.id);
@@ -97,7 +153,7 @@ export function RunPage({
         horizon: `${plan.planningHorizonStart}-${plan.planningHorizonEnd}`,
       };
     });
-  }, [expansionPlans, solverStatuses]);
+  }, [storageMode, expansionPlans, scenarios, solverStatuses]);
 
   // Sorting logic
   const handleSort = (columnKey: keyof RunCase) => {
@@ -200,9 +256,14 @@ export function RunPage({
     }
   };
 
+  // Get the active plan/scenario ID based on mode
+  const activePlanId = storageMode === 'local'
+    ? selectedPlanId
+    : scenarioId?.toString() || null;
+
   // Get the status for the currently selected plan
-  const selectedPlanSolverStatus = selectedPlanId
-    ? (solverStatuses[selectedPlanId] || 'inactive')
+  const selectedPlanSolverStatus = activePlanId
+    ? (solverStatuses[activePlanId] || 'inactive')
     : 'inactive';
 
   const getSolverStatusText = () => {
@@ -265,13 +326,14 @@ export function RunPage({
                 <Text style={styles.configLabel}>EXPANSION PLAN</Text>
                 <TouchableOpacity
                   style={styles.dropdown}
-                  onPress={() => setShowPlanDropdown(!showPlanDropdown)}>
+                  onPress={() => storageMode === 'local' && setShowPlanDropdown(!showPlanDropdown)}
+                  disabled={storageMode === 'database'}>
                   <Text style={styles.dropdownText}>
-                    {selectedPlan?.name || 'Select a plan'}
+                    {activePlanName}
                   </Text>
-                  <Text style={styles.dropdownArrow}>▼</Text>
+                  {storageMode === 'local' && <Text style={styles.dropdownArrow}>▼</Text>}
                 </TouchableOpacity>
-                {showPlanDropdown && (
+                {showPlanDropdown && storageMode === 'local' && (
                   <View style={styles.dropdownMenu}>
                     {expansionPlans.map(plan => (
                       <TouchableOpacity
@@ -293,9 +355,7 @@ export function RunPage({
                 <Text style={styles.configLabel}>SOURCE STUDY</Text>
                 <View style={styles.readOnlyField}>
                   <Text style={styles.readOnlyText} numberOfLines={1}>
-                    {selectedPlan?.sourceStudyId
-                      ? SAMPLE_STUDIES.find(s => s.id === selectedPlan.sourceStudyId)?.name || '-'
-                      : '-'}
+                    {activeStudyName}
                   </Text>
                 </View>
               </View>
@@ -321,10 +381,10 @@ export function RunPage({
                 style={[
                   styles.button,
                   styles.buttonStart,
-                  (!selectedPlanId || selectedPlanSolverStatus === 'running') && styles.buttonDisabled,
+                  (!activePlanId || selectedPlanSolverStatus === 'running') && styles.buttonDisabled,
                 ]}
-                onPress={() => selectedPlanId && onStartSolver(selectedPlanId)}
-                disabled={!selectedPlanId || selectedPlanSolverStatus === 'running'}>
+                onPress={() => activePlanId && onStartSolver(activePlanId)}
+                disabled={!activePlanId || selectedPlanSolverStatus === 'running'}>
                 <Text style={styles.buttonStartText}>▶ Start</Text>
               </TouchableOpacity>
 
@@ -332,10 +392,10 @@ export function RunPage({
                 style={[
                   styles.button,
                   styles.buttonStop,
-                  (!selectedPlanId || selectedPlanSolverStatus === 'inactive') && styles.buttonDisabled,
+                  (!activePlanId || selectedPlanSolverStatus === 'inactive') && styles.buttonDisabled,
                 ]}
-                onPress={() => selectedPlanId && onStopSolver(selectedPlanId)}
-                disabled={!selectedPlanId || selectedPlanSolverStatus === 'inactive'}>
+                onPress={() => activePlanId && onStopSolver(activePlanId)}
+                disabled={!activePlanId || selectedPlanSolverStatus === 'inactive'}>
                 <Text style={styles.buttonStopText}>■ Stop</Text>
               </TouchableOpacity>
 
@@ -343,10 +403,10 @@ export function RunPage({
                 style={[
                   styles.button,
                   styles.buttonPause,
-                  (!selectedPlanId || selectedPlanSolverStatus !== 'running') && styles.buttonDisabled,
+                  (!activePlanId || selectedPlanSolverStatus !== 'running') && styles.buttonDisabled,
                 ]}
-                onPress={() => selectedPlanId && onPauseSolver(selectedPlanId)}
-                disabled={!selectedPlanId || selectedPlanSolverStatus !== 'running'}>
+                onPress={() => activePlanId && onPauseSolver(activePlanId)}
+                disabled={!activePlanId || selectedPlanSolverStatus !== 'running'}>
                 <Text style={styles.buttonPauseText}>❚❚ Pause</Text>
               </TouchableOpacity>
 
@@ -370,8 +430,8 @@ export function RunPage({
               <View style={styles.summaryItem}>
                 <Text style={styles.summaryLabel}>Study Years</Text>
                 <Text style={styles.summaryValue}>
-                  {selectedPlan
-                    ? `${selectedPlan.planningHorizonStart}-${selectedPlan.planningHorizonEnd}`
+                  {planningHorizonStart && planningHorizonEnd
+                    ? `${planningHorizonStart}-${planningHorizonEnd}`
                     : '-'}
                 </Text>
               </View>

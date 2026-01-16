@@ -97,7 +97,7 @@ This is the final step where you package the `AppX` folder into a single `.msix`
 
     ```powershell
     # --- Packaging Details ---
-    $packageVersion = "1.0.0.4" # Change this to match your app version
+    $packageVersion = "1.0.0.5" # Change this to match your app version
     $certFileName = "ReactApp_SigningCert" # Must match the name from Step 1
     $certPassword = "YourSecurePassword" # Must match the password from Step 1
 
@@ -142,7 +142,7 @@ First, create a main folder for your release and copy your signed MSIX and certi
 
 ```powershell
 # --- Create the main folder ---
-$releaseFolder = "ExpansionPlanning-Release-v$($packageVersion)"
+$releaseFolder = "release\ExpansionPlanning-Release-v$($packageVersion)"
 # Clean up previous attempt
 if (Test-Path $releaseFolder) { remove-item $releaseFolder -Recurse -Force }
 mkdir $releaseFolder

@@ -104,5 +104,3 @@ backend/**/*.cache
 backend/**/appsettings.User.json
 *.DotSettings.user
 
-# Temporary PowerShell scripts
-*.ps1

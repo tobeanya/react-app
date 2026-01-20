@@ -44,7 +44,17 @@
       "Bash(timeout:*)",
       "Bash(ping:*)",
       "Bash(copy \"C:\\\\Users\\\\tobet\\\\Downloads\\\\ExpansionPlanResults.jsx\" \"C:\\\\Users\\\\tobet\\\\Projects\\\\react-app\\\\src\\\\pages\\\\ExpansionPlanResultsPage.tsx\")",
-      "Bash(cmd /c copy \"C:\\\\Users\\\\tobet\\\\Downloads\\\\ExpansionPlanResults.jsx\" \"C:\\\\Users\\\\tobet\\\\Projects\\\\react-app\\\\src\\\\pages\\\\ExpansionPlanResultsPage.tsx\")"
+      "Bash(cmd /c copy \"C:\\\\Users\\\\tobet\\\\Downloads\\\\ExpansionPlanResults.jsx\" \"C:\\\\Users\\\\tobet\\\\Projects\\\\react-app\\\\src\\\\pages\\\\ExpansionPlanResultsPage.tsx\")",
+      "Bash(dotnet new:*)",
+      "Bash(dotnet add:*)",
+      "Bash(dotnet build:*)",
+      "Bash(npx react-native-windows-clean)",
+      "Bash(copy \"windows\\\\ReactApp.Package\\\\Images\\\\Square150x150Logo.scale-200.png\" \"temp_bolt.png\" /Y)",
+      "Bash(cmd /c:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\tobet\\\\Projects\\\\react-app\\\\resize-icons.ps1\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\tobet\\\\Projects\\\\react-app\\\\create-ico.ps1\")",
+      "Bash(tasklist:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\tobet\\\\Projects\\\\react-app\\\\fix-icons.ps1\")"
     ]
   }
 }
